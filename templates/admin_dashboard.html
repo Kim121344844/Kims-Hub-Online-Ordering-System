@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin_styles.css') }}">
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <div class="dashboard-container">
+    <div class="main-content">
+      <section class="hero">
+        <div class="hero-content">
+          <h1>Admin Dashboard</h1>
+          <p>Monitor users and system activity.</p>
+        </div>
+      </section>
+
+      <section class="stats" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2>System Statistics</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3>Total Users</h3>
+            <p>{{ total_users }}</p>
+          </div>
+          <div class="stat-card">
+            <h3>Total Orders</h3>
+            <p>{{ total_orders }}</p>
+          </div>
+          <div class="stat-card">
+            <h3>Total Revenue</h3>
+            <p>₱{{ "%.2f"|format(total_revenue) }}</p>
+          </div>
+        </div>
+      </section>
+
+
+
+      <section class="all-orders" style="padding: 60px 40px;">
+        <h2>All Orders</h2>
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th>User Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Postal</th>
+              <th>City</th>
+              <th>Date</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Payment Method</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for order in all_orders %}
+            <tr>
+              <td>{{ order.user_name }}</td>
+              <td>{{ order.user_email }}</td>
+              <td>{{ order.phone }}</td>
+              <td>{{ order.address }}</td>
+              <td>{{ order.postal }}</td>
+              <td>{{ order.city }}</td>
+              <td>{{ order.date }}</td>
+              <td>{{ order['items'] | join(', ') }}</td>
+              <td>₱{{ "%.2f"|format(order.total) }}</td>
+              <td>{{ order.payment_method }}</td>
+              <td>{{ order.status }}</td>
+              <td>
+                {% if order.status != 'Cancelled' %}
+                <button type="button" class="btn btn-danger" onclick="cancelOrder('{{ order.order_id }}')">Cancel Order</button>
+                {% endif %}
+                {% if order.status == 'Processing' %}
+                <button type="button" class="btn btn-success" onclick="approveOrder('{{ order.order_id }}')">Approve Order</button>
+                {% elif order.status == 'Paid' %}
+                <span class="status-approved">Approved</span>
+                {% elif order.status == 'Cancelled' %}
+                <span class="status-cancelled">Cancelled</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="orders-per-user" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2>Orders Per User</h2>
+        <ul class="user-orders-list">
+          {% for email, count in orders_per_user.items() %}
+          <li class="user-order-item">
+            <strong>{{ email }}:</strong> {{ count }} orders
+          </li>
+          {% else %}
+          <li class="user-order-item">No orders yet.</li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
+  </footer>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    const socket = io();
+
+    socket.on('order_update', function(data) {
+      console.log('Order update received:', data);
+      // Refresh the orders table
+      fetchOrders();
+    });
+    // Function to fetch and update orders
+    async function fetchOrders() {
+      try {
+        const response = await fetch('/api/orders');
+        if (response.ok) {
+          const data = await response.json();
+          updateOrdersTable(data.orders);
+          updateStats(data.total_users, data.total_orders, data.total_revenue);
+          updateOrdersPerUser(data.orders);
+        } else {
+          console.error('Failed to fetch orders:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      }
+    }
+
+    // Function to update the orders table
+    function updateOrdersTable(orders) {
+      const tbody = document.querySelector('.orders-table tbody');
+      tbody.innerHTML = '';
+      orders.forEach((order) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${order.user_name}</td>
+          <td>${order.user_email}</td>
+          <td>${order.phone}</td>
+          <td>${order.address}</td>
+          <td>${order.postal}</td>
+          <td>${order.city}</td>
+          <td>${order.date}</td>
+          <td>${order.items.join(', ')}</td>
+          <td>₱${order.total.toFixed(2)}</td>
+          <td>${order.payment_method}</td>
+          <td>${order.status}</td>
+          <td>
+            ${order.status !== 'Cancelled' ? `<form method="POST" action="/cancel_order/${order.order_id}" style="display:inline;" onsubmit="return cancelOrder(event, '${order.order_id}')">
+              <button type="submit" class="btn btn-danger">Cancel Order</button>
+            </form>` : ''}
+            ${order.status === 'Processing' ? `<form method="POST" action="/approve_order/${order.order_id}" style="display:inline;" onsubmit="return approveOrder(event, '${order.order_id}')">
+              <button type="submit" class="btn btn-success">Approve Order</button>
+            </form>` : order.status === 'Paid' ? '<span class="status-approved">Approved</span>' : '<span class="status-cancelled">Cancelled</span>'}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Function to update stats
+    function updateStats(totalUsers, totalOrders, totalRevenue) {
+      document.querySelector('.stat-card:nth-child(1) p').textContent = totalUsers;
+      document.querySelector('.stat-card:nth-child(2) p').textContent = totalOrders;
+      document.querySelector('.stat-card:nth-child(3) p').textContent = '₱' + totalRevenue.toFixed(2);
+    }
+
+    // Function to update orders per user
+    function updateOrdersPerUser(orders) {
+      const ordersPerUser = {};
+      orders.forEach(order => {
+        const email = order.user_email;
+        if (!ordersPerUser[email]) {
+          ordersPerUser[email] = 0;
+        }
+        ordersPerUser[email]++;
+      });
+      const ul = document.querySelector('.user-orders-list');
+      ul.innerHTML = '';
+      const entries = Object.entries(ordersPerUser);
+      if (entries.length > 0) {
+        entries.forEach(([email, count]) => {
+          const li = document.createElement('li');
+          li.className = 'user-order-item';
+          li.innerHTML = `<strong>${email}:</strong> ${count} orders`;
+          ul.appendChild(li);
+        });
+      } else {
+        const li = document.createElement('li');
+        li.className = 'user-order-item';
+        li.textContent = 'No orders yet.';
+        ul.appendChild(li);
+      }
+    }
+
+    // Function to approve order
+    async function approveOrder(event, orderId) {
+      event.preventDefault();
+      try {
+        const response = await fetch(`/approve_order/${orderId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        });
+        if (response.ok) {
+          fetchOrders(); // Refresh the orders
+        } else {
+          alert('Failed to approve order');
+        }
+      } catch (error) {
+        console.error('Error approving order:', error);
+        alert('Error approving order');
+      }
+      return false;
+    }
+
+    // Function to cancel order
+    async function cancelOrder(event, orderId) {
+      event.preventDefault();
+      try {
+        const response = await fetch(`/cancel_order/${orderId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        });
+        if (response.ok) {
+          fetchOrders(); // Refresh the orders
+        } else {
+          alert('Failed to cancel order');
+        }
+      } catch (error) {
+        console.error('Error cancelling order:', error);
+        alert('Error cancelling order');
+      }
+      return false;
+    }
+
+    // Fetch orders on page load and set up polling
+    document.addEventListener('DOMContentLoaded', function() {
+      fetchOrders();
+      setInterval(fetchOrders, 5000); // Update every 5 seconds
+    });
+  </script>
+</body>
+</html>

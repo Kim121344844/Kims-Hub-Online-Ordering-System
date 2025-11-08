@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Confirm Logout - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <section class="form-section">
+    <h2>Confirm Logout</h2>
+    <p>Are you sure you want to log out?</p>
+    <form class="form-box" method="POST">
+      <button type="submit" name="confirm" value="yes">Yes, Logout</button>
+      <a href="{{ url_for('dashboard') }}" class="btn">Cancel</a>
+    </form>
+  </section>
+
+  <footer>
+    <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
+  </footer>
+</body>
+</html>

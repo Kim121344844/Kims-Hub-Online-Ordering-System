@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <section class="form-section">
+    <h2>Login</h2>
+    {% if error %}
+      <p style="color: red; text-align: center;">{{ error }}</p>
+    {% endif %}
+    <form class="form-box" method="POST">
+      <input type="email" name="email" placeholder="Email" value="{{ email or '' }}" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+  </section>
+
+  <footer>
+    <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
+  </footer>
+</body>
+</html>

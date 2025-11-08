@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <div class="dashboard-container">
+    <div class="main-content">
+      <!-- Enhanced Hero Section -->
+      <section class="hero">
+        <div class="hero-content">
+          <h1>Welcome back, {{ user_name }}! 👋</h1>
+          {% if user_email != 'guest@example.com' %}
+          <p>Logged in as: {{ user_email }}</p>
+          {% endif %}
+          <p>Manage your orders, view your favorites, and explore more delicious options!</p>
+          <a href="/menu" class="btn">Browse Menu</a>
+        </div>
+      </section>
+
+      <!-- User Stats Section -->
+      <section class="user-stats" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-chart-line"></i> Your Stats</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <i class="fas fa-shopping-cart"></i>
+            <h3>{{ cart|length if cart else 0 }}</h3>
+            <p>Items in Cart</p>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-heart"></i>
+            <h3>{{ favorites|length if favorites else 0 }}</h3>
+            <p>Favorites</p>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-clock"></i>
+            <h3 id="total-orders">0</h3>
+            <p>Total Orders</p>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-star"></i>
+            <h3>4.8</h3>
+            <p>Average Rating</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Profile Section -->
+      <section class="profile" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-user"></i> User Profile</h2>
+        <div class="profile-card">
+          <div class="profile-avatar">
+            <i class="fas fa-user-circle"></i>
+          </div>
+          <div class="profile-info">
+            <p><strong>Name:</strong> {{ user_name }}</p>
+            <p><strong>Email:</strong> {{ user_email }}</p>
+          </div>
+          <button class="btn edit-profile-btn">Edit Profile</button>
+        </div>
+      </section>
+
+      <!-- Favorites Section -->
+      <section class="favorites" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-heart"></i> Your Favorites</h2>
+        <div class="favorites-grid">
+          {% for fav in favorites %}
+          <div class="fav-item">
+            <img src="{{ url_for('static', filename=fav.image) }}" alt="{{ fav.name }}">
+            <h3>{{ fav.name }}</h3>
+            <button class="remove-btn" data-fav-id="{{ fav.id }}">Remove</button>
+          </div>
+          {% endfor %}
+          {% if not favorites %}
+          <div class="empty-state">
+            <i class="fas fa-heart-broken"></i>
+            <p>No favorites yet. Start exploring the menu!</p>
+            <a href="/menu" class="btn">Browse Menu</a>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <!-- Cart Section -->
+      <section class="cart" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-shopping-cart"></i> Your Cart</h2>
+        {% if cart %}
+        <div class="cart-container">
+          <ul class="cart-list">
+            {% for item in cart %}
+            <li class="cart-item">
+              <div class="item-info">
+                <span class="item-name">{{ item.name }}</span>
+                <span class="item-price">₱{{ "%.2f"|format(item.price) }}</span>
+              </div>
+              <a href="{{ url_for('remove_item', index=loop.index0) }}" class="remove-btn">Remove</a>
+            </li>
+            {% endfor %}
+          </ul>
+          <div class="cart-total">
+            <p><strong>Total: ₱{{ "%.2f"|format(cart|sum(attribute='price')) }}</strong></p>
+            <a href="{{ url_for('payment') }}" class="btn proceed-btn">Proceed to Payment</a>
+          </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-shopping-cart"></i>
+          <p>Your cart is empty. Add some delicious items!</p>
+          <a href="/menu" class="btn">Browse Menu</a>
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- Recommendations Section -->
+      <section class="recommendations" style="padding: 60px 40px;">
+        <h2><i class="fas fa-lightbulb"></i> Recommended for You</h2>
+        <div class="recommendations-grid">
+          <div class="recommendation-item">
+            <img src="{{ url_for('static', filename='images/Pizza.jpg') }}" alt="Pizza">
+            <h3>Margherita Pizza</h3>
+            <p>Classic Italian pizza with fresh mozzarella</p>
+            <span class="price">₱250.00</span>
+            <button class="btn add-to-cart-btn">Add to Cart</button>
+          </div>
+          <div class="recommendation-item">
+            <img src="{{ url_for('static', filename='images/Burger.jpg') }}" alt="Burger">
+            <h3>Cheeseburger</h3>
+            <p>Juicy beef patty with melted cheese</p>
+            <span class="price">₱180.00</span>
+            <button class="btn add-to-cart-btn">Add to Cart</button>
+          </div>
+          <div class="recommendation-item">
+            <img src="{{ url_for('static', filename='images/Dessert.jpg') }}" alt="Dessert">
+            <h3>Chocolate Cake</h3>
+            <p>Rich and decadent chocolate dessert</p>
+            <span class="price">₱120.00</span>
+            <button class="btn add-to-cart-btn">Add to Cart</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Notifications Section -->
+      <section class="notifications" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-bell"></i> Notifications</h2>
+        <ul class="notifications-list" id="notifications-list">
+          <!-- Notifications will be populated by JavaScript -->
+        </ul>
+      </section>
+
+      <!-- Quick Actions Section -->
+      <section class="about" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
+        <p>Update your profile, view order history, or contact support.</p>
+        <div class="quick-actions-grid">
+          <a href="/menu" class="action-card">
+            <i class="fas fa-utensils"></i>
+            <span>View Full Menu</span>
+          </a>
+          <a href="#" class="action-card">
+            <i class="fas fa-history"></i>
+            <span>Order History</span>
+          </a>
+          <a href="#" class="action-card">
+            <i class="fas fa-support"></i>
+            <span>Contact Support</span>
+            <p>Phone: +639668705421</p>
+            <p>Email: kimmendoza@gmail.com</p>
+          </a>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section id="order-history" class="order-history" style="padding: 60px 40px;">
+    <h2>Order History</h2>
+    <ul class="history-list" id="order-history-list">
+    </ul>
+  </section>
+
+  <footer>
+    <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
+  </footer>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    const socket = io();
+
+    socket.on('order_update', function(data) {
+      console.log('Order update received:', data);
+      // Refresh notifications and order history
+      fetchUserOrders();
+    });
+
+    // Function to fetch user orders and update UI
+    async function fetchUserOrders() {
+      try {
+        const response = await fetch('/api/user_orders');
+        if (response.ok) {
+          const data = await response.json();
+          updateNotifications(data.notifications);
+          updateOrderHistory(data.order_history);
+        } else {
+          console.error('Failed to fetch user orders:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching user orders:', error);
+      }
+    }
+
+    // Function to update notifications
+    function updateNotifications(notifications) {
+      const ul = document.getElementById('notifications-list');
+      ul.innerHTML = '';
+      notifications.forEach(notification => {
+        const li = document.createElement('li');
+        li.textContent = notification;
+        ul.appendChild(li);
+      });
+    }
+
+    // Function to update order history
+    function updateOrderHistory(orderHistory) {
+      const ul = document.getElementById('order-history-list');
+      ul.innerHTML = '';
+      orderHistory.forEach(order => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>Order ID:</strong> ${order.order_id} - <strong>Date:</strong> ${order.date} - <strong>Items:</strong> ${order.items.join(', ')} - <strong>Status:</strong> ${order.status}`;
+        ul.appendChild(li);
+      });
+    }
+
+    // Fetch user orders on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      fetchUserOrders();
+    });
+  </script>
+</body>
+</html>

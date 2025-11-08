@@ -1,0 +1,45 @@
+/* Reset and box-sizing */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Body full height and no horizontal scroll */
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-family: Arial, sans-serif;
+  background: #f8f8f8;
+}
+
+/* Hero section centered */
+.hero {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  text-align: center;
+  background: #e63946;
+  color: white;
+  padding: 20px;
+}
+
+.hero-content h1 {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.hero-content p {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+}
+
+.btn {
+  background: white;
+  color: #e63946;
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+}

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Payment - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <section class="payment-section">
+    <div class="container">
+      <h2>Secure Payment</h2>
+      <div id="payment-status" style="display:none; margin-bottom: 20px; padding: 10px; background-color: #e7f3ff; border: 1px solid #007bff; border-radius: 5px;">
+        <p>Payment Status: <span id="status-text">Processing...</span></p>
+      </div>
+      <div class="payment-layout">
+        <div class="cart-summary-card">
+          <h3>Order Summary</h3>
+          <div id="add-item-form">
+            <h4>Add Item</h4>
+            <form id="add-item">
+              <input type="text" id="new-item-name" placeholder="Item Name" required>
+              <input type="number" id="new-item-price" placeholder="Price" step="0.01" required>
+              <button type="submit" class="btn add-item-btn">Add Item</button>
+            </form>
+          </div>
+          <div class="cart-items" id="cart-items">
+            {% for item in cart %}
+            <div class="cart-item" data-index="{{ loop.index0 }}">
+              <div class="item-display">
+                <span class="item-name-display">{{ item.name }}</span>
+                <span class="item-price-display">₱{{ "%.2f"|format(item.price) }}</span>
+              </div>
+              <div class="item-edit" style="display:none;">
+                <input type="text" class="item-name" value="{{ item.name }}">
+                <input type="number" class="item-price" value="{{ item.price }}" step="0.01">
+              </div>
+              <div class="item-actions">
+                <button class="edit-btn" title="Edit Item"><i class="edit-icon">✏️</i> Edit</button>
+                <button class="save-btn" style="display:none;" title="Save Changes"><i class="save-icon">💾</i> Save</button>
+                <button class="remove-btn" title="Remove Item"><i class="remove-icon">🗑️</i></button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="cart-total">
+            <strong>Total: ₱<span id="cart-total">{{ "%.2f"|format(cart|sum(attribute='price')) }}</span></strong>
+          </div>
+        </div>
+
+        <div class="payment-form-card">
+          <h3>Select Payment Method</h3>
+          <form class="payment-form" method="POST">
+            <div class="payment-methods">
+              <div class="payment-option">
+                <input type="radio" id="gcash" name="payment_method" value="GCash" required>
+                <label for="gcash">
+                  <img src="{{ url_for('static', filename='images/gcash.png') }}" alt="GCash">
+                  GCash
+                </label>
+              </div>
+              <div class="payment-option">
+                <input type="radio" id="paymaya" name="payment_method" value="PayMaya" required>
+                <label for="paymaya">
+                  <img src="{{ url_for('static', filename='images/paymaya.jpg') }}" alt="PayMaya">
+                  PayMaya
+                </label>
+              </div>
+              <div class="payment-option">
+                <input type="radio" id="cod" name="payment_method" value="COD" required>
+                <label for="cod">
+                  <img src="{{ url_for('static', filename='images/cash on delivery.png') }}" alt="COD">
+                  Cash on Delivery
+                </label>
+              </div>
+            </div>
+
+            <div id="payment-details" class="payment-details" style="display: none;">
+              <h4>Delivery Information</h4>
+              <div class="form-group">
+                <label for="email">Email Address:</label>
+                <input type="email" name="email" id="email" placeholder="your@email.com" required>
+              </div>
+              <div class="form-group">
+                <label for="phone">Phone Number:</label>
+                <input type="tel" name="phone" id="phone" placeholder="+63 XXX XXX XXXX" required>
+              </div>
+              <div class="form-group">
+                <label for="address">Home Address:</label>
+                <textarea name="address" id="address" placeholder="Enter your full home address" required></textarea>
+              </div>
+              <div class="form-group">
+                <label for="postal">Postal Number:</label>
+                <input type="text" name="postal" id="postal" placeholder="Enter postal number" required>
+              </div>
+              <div class="form-group">
+                <label for="city">City:</label>
+                <input type="text" name="city" id="city" placeholder="Enter your city" required>
+              </div>
+
+
+            </div>
+
+            <button type="submit" class="pay-btn">Complete Payment</button>
+          </form>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    // Function to update cart display
+    function updateCartDisplay(cart, total) {
+      const cartItems = document.getElementById('cart-items');
+      cartItems.innerHTML = '';
+      cart.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'cart-item';
+        itemDiv.setAttribute('data-index', index);
+        itemDiv.innerHTML = `
+          <div class="item-display">
+            <span class="item-name-display">${item.name}</span>
+            <span class="item-price-display">₱${item.price.toFixed(2)}</span>
+          </div>
+          <div class="item-edit" style="display:none;">
+            <input type="text" class="item-name" value="${item.name}">
+            <input type="number" class="item-price" value="${item.price}" step="0.01">
+          </div>
+          <div class="item-actions">
+            <button class="edit-btn" title="Edit Item"><i class="edit-icon">✏️</i> Edit</button>
+            <button class="save-btn" style="display:none;" title="Save Changes"><i class="save-icon">💾</i> Save</button>
+            <button class="remove-btn" title="Remove Item"><i class="remove-icon">🗑️</i></button>
+          </div>
+        `;
+        cartItems.appendChild(itemDiv);
+      });
+      document.getElementById('cart-total').textContent = total.toFixed(2);
+    }
+
+    // Function to add item
+    async function addItem() {
+      const name = document.getElementById('new-item-name').value;
+      const price = parseFloat(document.getElementById('new-item-price').value);
+      if (!name || isNaN(price)) return;
+
+      try {
+        const response = await fetch('/add_item_payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            item_name: name,
+            item_price: price
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          updateCartDisplay(data.cart, data.total);
+          document.getElementById('new-item-name').value = '';
+          document.getElementById('new-item-price').value = '';
+        }
+      } catch (error) {
+        console.error('Error adding item:', error);
+      }
+    }
+
+    // Function to remove item
+    async function removeItem(index) {
+      try {
+        const response = await fetch(`/remove_item_payment/${index}`, {
+          method: 'POST'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          updateCartDisplay(data.cart, data.total);
+        }
+      } catch (error) {
+        console.error('Error removing item:', error);
+      }
+    }
+
+    // Function to edit item
+    async function editItem(index) {
+      const itemDiv = document.querySelector(`.cart-item[data-index="${index}"]`);
+      const displayDiv = itemDiv.querySelector('.item-display');
+      const editDiv = itemDiv.querySelector('.item-edit');
+      const editBtn = itemDiv.querySelector('.edit-btn');
+      const saveBtn = itemDiv.querySelector('.save-btn');
+
+      displayDiv.style.display = 'none';
+      editDiv.style.display = 'block';
+      editBtn.style.display = 'none';
+      saveBtn.style.display = 'inline-block';
+    }
+
+    // Function to save item
+    async function saveItem(index) {
+      const itemDiv = document.querySelector(`.cart-item[data-index="${index}"]`);
+      const nameInput = itemDiv.querySelector('.item-name');
+      const priceInput = itemDiv.querySelector('.item-price');
+
+      try {
+        const response = await fetch(`/edit_item_payment/${index}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            item_name: nameInput.value,
+            item_price: parseFloat(priceInput.value)
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          updateCartDisplay(data.cart, data.total);
+        }
+      } catch (error) {
+        console.error('Error saving item:', error);
+      }
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add item form
+      document.getElementById('add-item').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addItem();
+      });
+
+      // Cart item actions
+      document.getElementById('cart-items').addEventListener('click', function(e) {
+        const itemDiv = e.target.closest('.cart-item');
+        if (!itemDiv) return;
+        const index = parseInt(itemDiv.getAttribute('data-index'));
+
+        if (e.target.classList.contains('remove-btn')) {
+          removeItem(index);
+        } else if (e.target.classList.contains('edit-btn')) {
+          editItem(index);
+        } else if (e.target.classList.contains('save-btn')) {
+          saveItem(index);
+        }
+      });
+
+      // Payment method selection
+      document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+          const details = document.getElementById('payment-details');
+          if (this.checked) {
+            details.style.display = 'block';
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

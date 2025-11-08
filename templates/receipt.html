@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Receipt - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <section class="receipt-section">
+    <div class="container">
+      <h2>Order Receipt</h2>
+      <div class="receipt-card">
+      <h3>Order Details</h3>
+      <p><strong>Date:</strong> {{ receipt['date'] }}</p>
+      <p><strong>Payment Method:</strong> {{ receipt['payment_method'] }}</p>
+      <ul>
+        {% for item in receipt['items'] %}
+        <li>{{ item['name'] }} - ₱{{ "%.2f"|format(item['price']) }}</li>
+        {% endfor %}
+      </ul>
+      <p><strong>Total: ₱{{ "%.2f"|format(receipt['total']) }}</strong></p>
+      <p id="status-display"><strong>Status: {{ receipt['status'] }}</strong></p>
+      <p>Thank you for your order!</p>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn">Back to Dashboard</a>
+  </section>
+
+  <footer>
+    <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
+  </footer>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('order_id') || '{{ receipt.order_id }}';
+
+    // Real-time status update via SocketIO
+    socket.on('order_update', function(data) {
+      if (data.order_id === orderId) {
+        document.getElementById('status-display').innerHTML = `<strong>Status: ${data.status}</strong>`;
+      }
+    });
+
+    // Fallback polling for status updates
+    if (orderId) {
+      function pollStatus() {
+        fetch(`/payment_status/${orderId}`)
+          .then(response => response.json())
+          .then(data => {
+            document.getElementById('status-display').innerHTML = `<strong>Status: ${data.status}</strong>`;
+            if (data.status === 'Paid' || data.status === 'Cancelled') {
+              // Stop polling if final status
+            } else {
+              setTimeout(pollStatus, 5000); // Poll every 5 seconds
+            }
+          })
+          .catch(error => console.error('Error polling status:', error));
+      }
+      pollStatus();
+    }
+  </script>
+</body>
+</html>
