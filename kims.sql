@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS kims_hub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE online_food_ordering_system;
+CREATE DATABASE IF NOT EXISTS kims CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE kims;
 
 -- USERS TABLE
 CREATE TABLE IF NOT EXISTS users (

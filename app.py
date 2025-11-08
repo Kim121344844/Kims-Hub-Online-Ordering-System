@@ -7,9 +7,37 @@ from flask_socketio import SocketIO, emit, join_room
 from dotenv import load_dotenv
 
 load_dotenv()
+try:
+    import mysql.connector
+    from mysql.connector import Error
+except Exception:
+    mysql = None
+    Error = Exception
+
+db_config = {
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', ''),
+    'database': os.getenv('DB_NAME', 'kims') 
+}
+
+conn = None
+cursor = None
+try:
+    if 'mysql' in globals() and mysql is not None:
+        conn = mysql.connector.connect(**db_config)
+        if conn.is_connected():
+            cursor = conn.cursor(dictionary=True)
+            print('Connected to MySQL database')
+    else:
+        print('mysql.connector not installed; database connection skipped')
+except Exception as e:
+    print('Error connecting to database:', e)
+    conn = None
+    cursor = None
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
+app.secret_key = 'your_secret_key_here' 
 socketio = SocketIO(app)
 
 # Payment API functions
@@ -17,29 +45,42 @@ socketio = SocketIO(app)
 def initiate_gcash_payment(amount, order_id, description):
     gcash_app_id = os.getenv('GCASH_APP_ID')
     gcash_app_secret = os.getenv('GCASH_APP_SECRET')
-    # Mock GCash API call (replace with real API)
-    # In production, use actual GCash API endpoints
     return {'status': 'success', 'payment_id': f'gcash_{order_id}', 'redirect_url': f'https://gcash.com/pay/{order_id}'}
 
 def initiate_paymaya_payment(amount, order_id, description):
     paymaya_public_key = os.getenv('PAYMAYA_PUBLIC_KEY')
     paymaya_secret_key = os.getenv('PAYMAYA_SECRET_KEY')
-    # Mock PayMaya API call (replace with real API)
-    # In production, use actual PayMaya API endpoints
     return {'status': 'success', 'payment_id': f'paymaya_{order_id}', 'redirect_url': f'https://paymaya.com/pay/{order_id}'}
 
 @app.context_processor
 def inject_users():
     return {'users': users}
+users = []
 
-# Temporary in-memory user storage (replace with database later)
-users = [
-    {'name': 'Admin', 'email': 'admin@admin.com', 'password': 'admin123', 'role': 'admin'},
-    {'name': 'John Doe', 'email': 'john@example.com', 'password': 'password123', 'role': 'user'},
-    {'name': 'Jane Smith', 'email': 'jane@example.com', 'password': 'password123', 'role': 'user'},
-    {'name': 'Alice Johnson', 'email': 'alice@example.com', 'password': 'password123', 'role': 'user'},
-    {'name': 'Bob Brown', 'email': 'bob@example.com', 'password': 'password123', 'role': 'user'}
-]
+def _load_users_from_db():
+    global users
+    try:
+        if cursor:
+            cursor.execute("SELECT name, email, password, role FROM users")
+            rows = cursor.fetchall()
+            loaded = []
+            for r in rows:
+                loaded.append({
+                    'name': r.get('name') or r.get('full_name') or r.get('username') or 'User',
+                    'email': r.get('email'),
+                    'password': r.get('password'),
+                    'role': r.get('role', 'user')
+                })
+            users = loaded
+            print(f'Loaded {len(users)} users from database')
+        else:
+            print('DB cursor not available; users list is empty')
+            users = []
+    except Exception as e:
+        print('Error loading users from database:', e)
+        users = []
+
+_load_users_from_db()
 
 @app.route('/')
 def home():
@@ -60,10 +101,13 @@ def login():
         password = request.form['password']
         if len(password) < 6:
             return render_template('login.html', error='Password length is incorrect. Minimum 6 characters required.', email=email)
+        
         # Find user by email
+
         user = next((u for u in users if u['email'] == email), None)
         if user:
-            if user['password'] == password:
+            from werkzeug.security import check_password_hash
+            if check_password_hash(user['password'], password):
                 session['user'] = email
                 if user.get('role') == 'admin':
                     return redirect(url_for('admin_dashboard'))
@@ -79,9 +123,11 @@ def login():
 def dashboard():
     user_email = session.get('user')
     if user_email:
+
         # Find user name from registered users
+
         user = next((u for u in users if u['email'] == user_email), None)
-        user_name = user['name'] if user else 'User'  # Default to 'User' if not found
+        user_name = user['name'] if user else 'User'
     else:
         user_name = 'Guest'
         user_email = 'guest@example.com'
@@ -92,21 +138,23 @@ def dashboard():
     cart = session.get('cart', [])
 
     # Calculate user stats
+
     user_orders = [order for order in all_orders if order.get('user_email') == user_email]
     total_orders = len(user_orders)
     total_spent = sum(order['total'] for order in user_orders)
 
-    # Favorite category (simplified: based on most ordered items)
+    # Favorite category
+
     item_counts = {}
     for order in user_orders:
         for item in order['items']:
             item_counts[item] = item_counts.get(item, 0) + 1
     favorite_category = max(item_counts, key=item_counts.get) if item_counts else 'None'
 
-    # Recent orders (last 3)
+    # Recent orders
     recent_orders = user_orders[-3:] if user_orders else []
 
-    # Recommendations based on favorites (simple: suggest similar items)
+    # Recommendations
     recommendations = [
         {'name': 'Chicken Adobo', 'image': 'images/Chicken Adobo.jpg', 'price': 120.00},
         {'name': 'Sinigang', 'image': 'images/Sinigang.jpg', 'price': 150.00},
@@ -125,11 +173,31 @@ def signup():
         password = request.form['password']
         if len(password) < 6:
             return render_template('signup.html', error='Password length is incorrect. Minimum 6 characters required.', name=name, email=email)
+        
         # Check if user already exists
         if any(user['email'] == email for user in users):
             return render_template('signup.html', error='Email already registered', name=name, email=email)
-        # Save user (temporary in-memory storage)
-        users.append({'name': name, 'email': email, 'password': password, 'role': 'user'})
+        
+        # Hash password
+        from werkzeug.security import generate_password_hash
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256:600000', salt_length=8)
+        # Insert into database
+        try:
+            if cursor:
+                cursor.execute("""
+                INSERT INTO users (name, email, password, role)
+                VALUES (%s, %s, %s, %s)
+                """, (name, email, hashed_password, 'user'))
+                conn.commit()
+                # Reload users from database
+                _load_users_from_db()
+            else:
+                # Fallback to in-memory if DB not available
+                users.append({'name': name, 'email': email, 'password': hashed_password, 'role': 'user'})
+        except Exception as e:
+            print('Error saving user to database:', e)
+            # Fallback to in-memory
+            users.append({'name': name, 'email': email, 'password': hashed_password, 'role': 'user'})
         return redirect(url_for('login'))
     return render_template('signup.html')
 
@@ -148,6 +216,7 @@ def add_item():
     item_price = float(request.form['item_price'])
     quantity = int(request.form.get('quantity', 1))
     cart = session.get('cart', [])
+
     # Check if item already exists
     existing_item = next((item for item in cart if item['name'] == item_name), None)
     if existing_item:
@@ -182,8 +251,9 @@ def reorder(order_id):
     if order and order['user_email'] == session.get('user'):
         cart = session.get('cart', [])
         for item_name in order['items']:
-            # Simple reorder: add one of each item (in real app, would use original quantities)
-            cart.append({'name': item_name, 'price': 100.0, 'quantity': 1})  # Mock price
+
+            # Simple reorder: add one of each item
+            cart.append({'name': item_name, 'price': 100.0, 'quantity': 1})
         session['cart'] = cart
     return redirect(url_for('dashboard'))
 
@@ -193,6 +263,7 @@ def add_item_payment():
     item_price = float(request.form['item_price'])
     quantity = int(request.form.get('quantity', 1))
     cart = session.get('cart', [])
+
     # Check if item already exists
     existing_item = next((item for item in cart if item['name'] == item_name), None)
     if existing_item:
@@ -282,7 +353,23 @@ def payment():
             'payment_id': payment_id,
             'status': status
         }
-        all_orders.append(order)
+        # Insert order into database
+        try:
+            if cursor:
+                cursor.execute("""
+                INSERT INTO orders (order_id, user_email, user_name, phone, address, postal, city, date, items, total, payment_method, payment_id, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (order_id, session.get('user'), order['user_name'], phone, address, postal, city, order['date'], ','.join(order['items']), total, payment_method, payment_id, status))
+                conn.commit()
+                # Reload orders from database
+                _load_orders_from_db()
+            else:
+                # Fallback to in-memory if DB not available
+                all_orders.append(order)
+        except Exception as e:
+            print('Error saving order to database:', e)
+            # Fallback to in-memory
+            all_orders.append(order)
         receipt = {
             'order_id': order_id,
             'items': cart,
@@ -316,6 +403,41 @@ def receipt():
 # Global variable to store orders (in a real app, this would be a database)
 all_orders = []
 
+def _load_orders_from_db():
+    global all_orders
+    try:
+        if cursor:
+            cursor.execute("SELECT order_id, user_email, user_name, phone, address, postal, city, date, items, total, payment_method, payment_id, status FROM orders")
+            rows = cursor.fetchall()
+            loaded = []
+            for r in rows:
+                loaded.append({
+                    'order_id': r['order_id'],
+                    'user_email': r['user_email'],
+                    'user_name': r['user_name'],
+                    'phone': r['phone'],
+                    'address': r['address'],
+                    'postal': r['postal'],
+                    'city': r['city'],
+                    'date': r['date'].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r['date'], 'strftime') else str(r['date']),
+                    'processing_start': datetime.datetime.strptime(r['date'], '%Y-%m-%d %H:%M:%S') if isinstance(r['date'], str) else r['date'],
+                    'items': r['items'].split(',') if r['items'] else [],
+                    'total': float(r['total']),
+                    'payment_method': r['payment_method'],
+                    'payment_id': r['payment_id'],
+                    'status': r['status']
+                })
+            all_orders = loaded
+            print(f'Loaded {len(all_orders)} orders from database')
+        else:
+            print('DB cursor not available; orders list is empty')
+            all_orders = []
+    except Exception as e:
+        print('Error loading orders from database:', e)
+        all_orders = []
+
+_load_orders_from_db()
+
 @app.route('/admin_dashboard')
 def admin_dashboard():
     user_email = session.get('user')
@@ -323,11 +445,13 @@ def admin_dashboard():
         return redirect(url_for('login'))
     user = next((u for u in users if u['email'] == user_email), None)
     if not user or user.get('role') != 'admin':
-        return redirect(url_for('dashboard'))  # Redirect non-admins to user dashboard
+        return redirect(url_for('dashboard'))
+    
     # Mock aggregated data for admin
     total_users = len(users)
-    total_orders = len(all_orders)  # Use actual count
+    total_orders = len(all_orders)
     total_revenue = sum(order['total'] for order in all_orders)
+
     # Calculate orders per user
     orders_per_user = {}
     for order in all_orders:
@@ -361,10 +485,10 @@ def api_user_orders():
         {'order_id': order['order_id'], 'date': order['date'], 'items': order['items'], 'status': order['status']}
         for order in user_orders
     ]
-    # Dynamic notifications based on all user orders (including cancelled)
+    # Dynamic notifications based on all user orders
     notifications = []
     if all_user_orders:
-        recent_order = all_user_orders[-1]  # Most recent order
+        recent_order = all_user_orders[-1]
         if recent_order['status'] == 'Delivered':
             notifications.append('Rate your recent order.')
         elif recent_order['status'] == 'Processing':
@@ -389,7 +513,16 @@ def cancel_order(order_id):
     order = next((o for o in all_orders if o['order_id'] == order_id), None)
     if order and order['status'] != 'Cancelled':
         order['status'] = 'Cancelled'
-        # Emit real-time updates
+        # Update database
+
+        try:
+            if cursor:
+                cursor.execute("UPDATE orders SET status = 'Cancelled' WHERE order_id = %s", (order_id,))
+                conn.commit()
+        except Exception as e:
+            print('Error updating order status in database:', e)
+
+        # Real time updates
         socketio.emit('order_update', {'order_id': order_id, 'status': 'Cancelled', 'user_email': order['user_email']})
         return {'success': True}
     return {'error': 'Invalid order ID or status'}, 400
@@ -405,6 +538,13 @@ def approve_order(order_id):
     order = next((o for o in all_orders if o['order_id'] == order_id), None)
     if order and order['status'] == 'Processing':
         order['status'] = 'Paid'
+        # Update database Payment status
+        try:
+            if cursor:
+                cursor.execute("UPDATE orders SET status = 'Paid' WHERE order_id = %s", (order_id,))
+                conn.commit()
+        except Exception as e:
+            print('Error updating order status in database:', e)
         # Emit real-time updates
         socketio.emit('order_update', {'order_id': order_id, 'status': 'Paid', 'user_email': order['user_email']})
         return {'success': True}
@@ -429,12 +569,10 @@ def payment_status(order_id):
     order = next((o for o in all_orders if o.get('order_id') == order_id), None)
     if not order:
         return jsonify({'error': 'Order not found'}), 404
-    # Automatic payment approval if not approved by admin within 5 minutes
     if order['status'] == 'Processing' and order.get('processing_start'):
         elapsed = datetime.datetime.now() - order['processing_start']
-        if elapsed.total_seconds() > 300:  # 5 minutes
+        if elapsed.total_seconds() > 300: 
             order['status'] = 'Paid'
-            # Emit real-time updates
             socketio.emit('order_update', {'order_id': order_id, 'status': 'Paid', 'user_email': order['user_email']})
     return jsonify({'status': order['status']})
 
