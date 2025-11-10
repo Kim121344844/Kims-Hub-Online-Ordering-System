@@ -53,6 +53,16 @@
   border-bottom: 1px solid rgba(255, 107, 53, 0.1);
 }
 
+.button-container {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.button-container .btn {
+  margin: 0 5px;
+}
+
 .orders-table th {
   background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%);
   color: white;

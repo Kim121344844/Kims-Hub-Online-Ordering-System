@@ -5,40 +5,19 @@ import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import SocketIO, emit, join_room
 from dotenv import load_dotenv
+from models import db, User, Order
+from config import Config
 
 load_dotenv()
-try:
-    import mysql.connector
-    from mysql.connector import Error
-except Exception:
-    mysql = None
-    Error = Exception
-
-db_config = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
-    'database': os.getenv('DB_NAME', 'kims') 
-}
-
-conn = None
-cursor = None
-try:
-    if 'mysql' in globals() and mysql is not None:
-        conn = mysql.connector.connect(**db_config)
-        if conn.is_connected():
-            cursor = conn.cursor(dictionary=True)
-            print('Connected to MySQL database')
-    else:
-        print('mysql.connector not installed; database connection skipped')
-except Exception as e:
-    print('Error connecting to database:', e)
-    conn = None
-    cursor = None
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here' 
+app.config.from_object(Config)
+db.init_app(app)
 socketio = SocketIO(app)
+
+with app.app_context():
+    db.create_all()
+    print('Database tables created or verified.')
 
 # Payment API functions
 
@@ -55,30 +34,17 @@ def initiate_paymaya_payment(amount, order_id, description):
 @app.context_processor
 def inject_users():
     return {'users': users}
-users = []
 
 def _load_users_from_db():
     global users
-    try:
-        if cursor:
-            cursor.execute("SELECT name, email, password, role FROM users")
-            rows = cursor.fetchall()
-            loaded = []
-            for r in rows:
-                loaded.append({
-                    'name': r.get('name') or r.get('full_name') or r.get('username') or 'User',
-                    'email': r.get('email'),
-                    'password': r.get('password'),
-                    'role': r.get('role', 'user')
-                })
-            users = loaded
+    with app.app_context():
+        try:
+            users_db = User.query.all()
+            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role} for u in users_db]
             print(f'Loaded {len(users)} users from database')
-        else:
-            print('DB cursor not available; users list is empty')
+        except Exception as e:
+            print('Error loading users from database:', e)
             users = []
-    except Exception as e:
-        print('Error loading users from database:', e)
-        users = []
 
 _load_users_from_db()
 
@@ -183,21 +149,14 @@ def signup():
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256:600000', salt_length=8)
         # Insert into database
         try:
-            if cursor:
-                cursor.execute("""
-                INSERT INTO users (name, email, password, role)
-                VALUES (%s, %s, %s, %s)
-                """, (name, email, hashed_password, 'user'))
-                conn.commit()
-                # Reload users from database
-                _load_users_from_db()
-            else:
-                # Fallback to in-memory if DB not available
-                users.append({'name': name, 'email': email, 'password': hashed_password, 'role': 'user'})
+            new_user = User(name=name, email=email, password=hashed_password, role='user')
+            db.session.add(new_user)
+            db.session.commit()
+            # Reload users from database
+            _load_users_from_db()
         except Exception as e:
             print('Error saving user to database:', e)
-            # Fallback to in-memory
-            users.append({'name': name, 'email': email, 'password': hashed_password, 'role': 'user'})
+            db.session.rollback()
         return redirect(url_for('login'))
     return render_template('signup.html')
 
@@ -355,21 +314,28 @@ def payment():
         }
         # Insert order into database
         try:
-            if cursor:
-                cursor.execute("""
-                INSERT INTO orders (order_id, user_email, user_name, phone, address, postal, city, date, items, total, payment_method, payment_id, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (order_id, session.get('user'), order['user_name'], phone, address, postal, city, order['date'], ','.join(order['items']), total, payment_method, payment_id, status))
-                conn.commit()
-                # Reload orders from database
-                _load_orders_from_db()
-            else:
-                # Fallback to in-memory if DB not available
-                all_orders.append(order)
+            new_order = Order(
+                order_id=order_id,
+                user_email=session.get('user'),
+                user_name=order['user_name'],
+                phone=phone,
+                address=address,
+                postal=postal,
+                city=city,
+                date=order['date'],
+                items=','.join(order['items']),
+                total=total,
+                payment_method=payment_method,
+                payment_id=payment_id,
+                status=status
+            )
+            db.session.add(new_order)
+            db.session.commit()
+            # Reload orders from database
+            _load_orders_from_db()
         except Exception as e:
             print('Error saving order to database:', e)
-            # Fallback to in-memory
-            all_orders.append(order)
+            db.session.rollback()
         receipt = {
             'order_id': order_id,
             'items': cart,
@@ -385,10 +351,7 @@ def payment():
         }
         session['receipt'] = receipt
         session['cart'] = []  # Clear cart after payment
-        if payment_method in ['GCash', 'PayMaya']:
-            return redirect(url_for('payment', order_id=order_id))
-        else:
-            return redirect(url_for('receipt', order_id=order_id))
+        return redirect(url_for('receipt', order_id=order_id))
     return render_template('payment.html', cart=cart)
 
 @app.route('/receipt')
@@ -400,41 +363,33 @@ def receipt():
         return redirect(url_for('dashboard'))
     return render_template('receipt.html', receipt=receipt)
 
-# Global variable to store orders (in a real app, this would be a database)
-all_orders = []
-
 def _load_orders_from_db():
     global all_orders
-    try:
-        if cursor:
-            cursor.execute("SELECT order_id, user_email, user_name, phone, address, postal, city, date, items, total, payment_method, payment_id, status FROM orders")
-            rows = cursor.fetchall()
-            loaded = []
-            for r in rows:
-                loaded.append({
-                    'order_id': r['order_id'],
-                    'user_email': r['user_email'],
-                    'user_name': r['user_name'],
-                    'phone': r['phone'],
-                    'address': r['address'],
-                    'postal': r['postal'],
-                    'city': r['city'],
-                    'date': r['date'].strftime('%Y-%m-%d %H:%M:%S') if hasattr(r['date'], 'strftime') else str(r['date']),
-                    'processing_start': datetime.datetime.strptime(r['date'], '%Y-%m-%d %H:%M:%S') if isinstance(r['date'], str) else r['date'],
-                    'items': r['items'].split(',') if r['items'] else [],
-                    'total': float(r['total']),
-                    'payment_method': r['payment_method'],
-                    'payment_id': r['payment_id'],
-                    'status': r['status']
-                })
-            all_orders = loaded
-            print(f'Loaded {len(all_orders)} orders from database')
-        else:
-            print('DB cursor not available; orders list is empty')
+    with app.app_context():
+        try:
+            orders_db = Order.query.all()
             all_orders = []
-    except Exception as e:
-        print('Error loading orders from database:', e)
-        all_orders = []
+            for o in orders_db:
+                all_orders.append({
+                    'order_id': o.order_id,
+                    'user_email': o.user_email,
+                    'user_name': o.user_name,
+                    'phone': o.phone,
+                    'address': o.address,
+                    'postal': o.postal,
+                    'city': o.city,
+                    'date': o.date,
+                    'processing_start': datetime.datetime.strptime(o.date, '%Y-%m-%d %H:%M:%S') if isinstance(o.date, str) else o.date,
+                    'items': o.items.split(',') if o.items else [],
+                    'total': float(o.total),
+                    'payment_method': o.payment_method,
+                    'payment_id': o.payment_id,
+                    'status': o.status
+                })
+            print(f'Loaded {len(all_orders)} orders from database')
+        except Exception as e:
+            print('Error loading orders from database:', e)
+            all_orders = []
 
 _load_orders_from_db()
 
@@ -514,13 +469,14 @@ def cancel_order(order_id):
     if order and order['status'] != 'Cancelled':
         order['status'] = 'Cancelled'
         # Update database
-
         try:
-            if cursor:
-                cursor.execute("UPDATE orders SET status = 'Cancelled' WHERE order_id = %s", (order_id,))
-                conn.commit()
+            order_db = Order.query.filter_by(order_id=order_id).first()
+            if order_db:
+                order_db.status = 'Cancelled'
+                db.session.commit()
         except Exception as e:
             print('Error updating order status in database:', e)
+            db.session.rollback()
 
         # Real time updates
         socketio.emit('order_update', {'order_id': order_id, 'status': 'Cancelled', 'user_email': order['user_email']})
@@ -540,11 +496,13 @@ def approve_order(order_id):
         order['status'] = 'Paid'
         # Update database Payment status
         try:
-            if cursor:
-                cursor.execute("UPDATE orders SET status = 'Paid' WHERE order_id = %s", (order_id,))
-                conn.commit()
+            order_db = Order.query.filter_by(order_id=order_id).first()
+            if order_db:
+                order_db.status = 'Paid'
+                db.session.commit()
         except Exception as e:
             print('Error updating order status in database:', e)
+            db.session.rollback()
         # Emit real-time updates
         socketio.emit('order_update', {'order_id': order_id, 'status': 'Paid', 'user_email': order['user_email']})
         return {'success': True}
