@@ -508,6 +508,62 @@ def approve_order(order_id):
         return {'success': True}
     return {'error': 'Invalid order ID or status'}, 400
 
+@app.route('/edit_order/<order_id>', methods=['GET', 'POST'])
+def edit_order(order_id):
+    user_email = session.get('user')
+    if not user_email:
+        return {'error': 'Not logged in'}, 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return {'error': 'Unauthorized'}, 403
+    order = next((o for o in all_orders if o['order_id'] == order_id), None)
+    if not order:
+        return {'error': 'Order not found'}, 404
+    if request.method == 'POST':
+        new_user_name = request.form.get('user_name', order['user_name'])
+        new_user_email = request.form.get('user_email', order['user_email'])
+        # Update order details
+        order['user_name'] = new_user_name
+        order['user_email'] = new_user_email
+        order['phone'] = request.form.get('phone', order['phone'])
+        order['address'] = request.form.get('address', order['address'])
+        order['postal'] = request.form.get('postal', order['postal'])
+        order['city'] = request.form.get('city', order['city'])
+        order['items'] = request.form.getlist('items')  # Assuming items as list
+        order['total'] = float(request.form.get('total', order['total']))
+        order['payment_method'] = request.form.get('payment_method', order['payment_method'])
+        # Update database
+        try:
+            db_order = Order.query.filter_by(order_id=order_id).first()
+            if db_order:
+                db_order.user_name = order['user_name']
+                db_order.user_email = order['user_email']
+                db_order.phone = order['phone']
+                db_order.address = order['address']
+                db_order.postal = order['postal']
+                db_order.city = order['city']
+                db_order.items = ','.join(order['items'])
+                db_order.total = order['total']
+                db_order.payment_method = order['payment_method']
+                db.session.commit()
+            # Update user details if changed
+            if new_user_email != order['user_email'] or new_user_name != order['user_name']:
+                user_db = User.query.filter_by(email=order['user_email']).first()
+                if user_db:
+                    user_db.email = new_user_email
+                    user_db.name = new_user_name
+                    db.session.commit()
+                    # Reload users from database
+                    _load_users_from_db()
+        except Exception as e:
+            print('Error updating order/user in database:', e)
+            db.session.rollback()
+            return {'error': 'Database error'}, 500
+        # Emit real-time updates
+        socketio.emit('order_update', {'order_id': order_id, 'status': order['status'], 'user_email': order['user_email']})
+        return redirect(url_for('admin_dashboard'))
+    return render_template('edit_order.html', order=order)
+
 @socketio.on('connect')
 def handle_connect():
     user_email = session.get('user')
