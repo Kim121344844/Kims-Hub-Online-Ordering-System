@@ -19,9 +19,11 @@
         {% endif %}
         <p>Juicy grilled burgers with fresh toppings.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Burger">
           <input type="hidden" name="item_price" value="800">
+          <label for="quantity-burger">Quantity:</label>
+          <input type="number" id="quantity-burger" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -34,9 +36,11 @@
         {% endif %}
         <p>Hot cheesy pizza straight from the oven.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Pizza">
           <input type="hidden" name="item_price" value="1200">
+          <label for="quantity-pizza">Quantity:</label>
+          <input type="number" id="quantity-pizza" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -49,9 +53,11 @@
         {% endif %}
         <p>Delicious tacos with fresh ingredients.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Tacos">
           <input type="hidden" name="item_price" value="600">
+          <label for="quantity-tacos">Quantity:</label>
+          <input type="number" id="quantity-tacos" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -64,9 +70,11 @@
         {% endif %}
         <p>Classic main courses prepared with care.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Main Course">
           <input type="hidden" name="item_price" value="1500">
+          <label for="quantity-main-course">Quantity:</label>
+          <input type="number" id="quantity-main-course" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -79,9 +87,11 @@
         {% endif %}
         <p>Authentic Mexican flavors and spices.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Mexican Food">
           <input type="hidden" name="item_price" value="1000">
+          <label for="quantity-mexican-food">Quantity:</label>
+          <input type="number" id="quantity-mexican-food" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -94,9 +104,11 @@
         {% endif %}
         <p>Traditional Filipino dishes with rich taste.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Filipino Food">
           <input type="hidden" name="item_price" value="500">
+          <label for="quantity-filipino-food">Quantity:</label>
+          <input type="number" id="quantity-filipino-food" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -109,9 +121,11 @@
         {% endif %}
         <p>Nutritious and healthy meal choices.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Healthy Options">
           <input type="hidden" name="item_price" value="700">
+          <label for="quantity-healthy-options">Quantity:</label>
+          <input type="number" id="quantity-healthy-options" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -124,9 +138,11 @@
         {% endif %}
         <p>Sweet treats to end your meal perfectly.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Dessert">
           <input type="hidden" name="item_price" value="400">
+          <label for="quantity-dessert">Quantity:</label>
+          <input type="number" id="quantity-dessert" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -139,9 +155,11 @@
         {% endif %}
         <p>Refreshing beverages for every taste.</p>
         {% if session.get('user') %}
-        <form method="POST" action="{{ url_for('add_item') }}">
+        <form method="POST" action="{{ url_for('add_item') }}" onsubmit="return validateQuantity(this)">
           <input type="hidden" name="item_name" value="Drinks">
           <input type="hidden" name="item_price" value="200">
+          <label for="quantity-drinks">Quantity:</label>
+          <input type="number" id="quantity-drinks" name="quantity" value="0" min="0" max="10" required>
           <button type="submit" class="order-btn">Add to Cart</button>
         </form>
         {% endif %}
@@ -156,5 +174,16 @@
   </footer>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    function validateQuantity(form) {
+      const quantityInput = form.querySelector('input[name="quantity"]');
+      const quantity = parseInt(quantityInput.value);
+      if (quantity <= 0 || quantity > 10) {
+        alert('Please select a quantity between 1 and 10.');
+        return false;
+      }
+      return true;
+    }
+  </script>
 </body>
 </html>

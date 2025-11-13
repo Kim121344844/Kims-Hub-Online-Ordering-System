@@ -21,12 +21,6 @@ if (loginForm) {
 // Add animation to "Order Now" buttons
 document.querySelectorAll('.order-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    // Check if user is logged in (simple check for demo, in real app use session)
-    if (!localStorage.getItem('loggedIn')) {
-      alert('Please login first to continue your order.');
-      window.location.href = '/login';
-      return;
-    }
     btn.innerText = "Added!";
     btn.style.background = "#4caf50";
     setTimeout(() => {

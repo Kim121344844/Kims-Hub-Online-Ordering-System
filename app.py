@@ -17,16 +17,13 @@ otp_storage = {}
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# -----------------------------
-# Flask-Mail Configuration
-# -----------------------------
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'users12345.com@gmail.com'
-app.config['MAIL_PASSWORD'] = 'uvvl kkan hlih cqun'  # replace with App Password
-app.config['MAIL_DEFAULT_SENDER'] = 'users12345.com@gmail.com'
+app.config['MAIL_USERNAME'] = 'kimshubonlineorderingsystem@gmail.com'
+app.config['MAIL_PASSWORD'] = 'frav tlep eaes xyqs'
+app.config['MAIL_DEFAULT_SENDER'] = 'kimshubonlineorderingsystem@gmail.com'
 
 db.init_app(app)
 socketio = SocketIO(app)
@@ -144,11 +141,12 @@ def dashboard():
     else:
         user_name = 'Guest'
         user_email = 'guest@example.com'
-    favorites = [
+    favorites = session.get('favorites', [
         {'name': 'Burger', 'image': 'images/Burger.jpg'},
         {'name': 'Pizza', 'image': 'images/Pizza.jpg'}
-    ]
+    ])
     cart = session.get('cart', [])
+    cart_total = sum(item['price'] * item['quantity'] for item in cart)
 
     # Calculate user stats
 
@@ -175,7 +173,7 @@ def dashboard():
     ]
 
     return render_template('dashboard.html', user_name=user_name, user_email=user_email, favorites=favorites, cart=cart,
-                           total_orders=total_orders, total_spent=total_spent, favorite_category=favorite_category,
+                           cart_total=cart_total, total_orders=total_orders, total_spent=total_spent, favorite_category=favorite_category,
                            recent_orders=recent_orders, recommendations=recommendations)
 
 @app.route('/signup', methods=['GET', 'POST'])
@@ -221,6 +219,12 @@ def add_item():
     item_name = request.form['item_name']
     item_price = float(request.form['item_price'])
     quantity = int(request.form.get('quantity', 1))
+
+    # Validate quantity
+    if quantity <= 0 or quantity > 10:
+        flash('Please select a quantity between 1 and 10.', 'error')
+        return redirect(url_for('menu'))
+
     cart = session.get('cart', [])
 
     # Check if item already exists
@@ -230,7 +234,8 @@ def add_item():
     else:
         cart.append({'name': item_name, 'price': item_price, 'quantity': quantity})
     session['cart'] = cart
-    return redirect(url_for('dashboard'))
+    flash(f'Added {quantity} x {item_name} to cart.', 'success')
+    return redirect(url_for('menu'))
 
 @app.route('/remove_item/<int:index>')
 def remove_item(index):
@@ -311,6 +316,7 @@ def payment():
     cart = session.get('cart', [])
     if not cart:
         return redirect(url_for('dashboard'))
+    total = sum(item['price'] * item['quantity'] for item in cart)
     if request.method == 'POST':
         payment_method = request.form['payment_method']
         email = request.form.get('email')
@@ -399,7 +405,7 @@ def payment():
         session['receipt'] = receipt
         session['cart'] = []  # Clear cart after payment
         return redirect(url_for('receipt', order_id=order_id))
-    return render_template('payment.html', cart=cart)
+    return render_template('payment.html', cart=cart, total=total)
 
 @app.route('/receipt')
 def receipt():
@@ -569,17 +575,17 @@ def edit_order(order_id):
     if request.method == 'POST':
         new_user_name = request.form.get('user_name', order['user_name'])
         new_user_email = request.form.get('user_email', order['user_email'])
-        # Update order details
+        # ORDER DETAILS UPDATE
         order['user_name'] = new_user_name
         order['user_email'] = new_user_email
         order['phone'] = request.form.get('phone', order['phone'])
         order['address'] = request.form.get('address', order['address'])
         order['postal'] = request.form.get('postal', order['postal'])
         order['city'] = request.form.get('city', order['city'])
-        order['items'] = request.form.getlist('items')  # Assuming items as list
+        order['items'] = request.form.getlist('items') 
         order['total'] = float(request.form.get('total', order['total']))
         order['payment_method'] = request.form.get('payment_method', order['payment_method'])
-        # Update database
+        # UPDATE DATABASE
         try:
             db_order = Order.query.filter_by(order_id=order_id).first()
             if db_order:
@@ -593,20 +599,19 @@ def edit_order(order_id):
                 db_order.total = order['total']
                 db_order.payment_method = order['payment_method']
                 db.session.commit()
-            # Update user details if changed
+
             if new_user_email != order['user_email'] or new_user_name != order['user_name']:
                 user_db = User.query.filter_by(email=order['user_email']).first()
                 if user_db:
                     user_db.email = new_user_email
                     user_db.name = new_user_name
                     db.session.commit()
-                    # Reload users from database
+                
                     _load_users_from_db()
         except Exception as e:
             print('Error updating order/user in database:', e)
             db.session.rollback()
             return {'error': 'Database error'}, 500
-        # Emit real-time updates
         socketio.emit('order_update', {'order_id': order_id, 'status': order['status'], 'user_email': order['user_email']})
         return redirect(url_for('admin_dashboard'))
     return render_template('edit_order.html', order=order)
@@ -632,10 +637,45 @@ def payment_status(order_id):
         return jsonify({'error': 'Order not found'}), 404
     if order['status'] == 'Processing' and order.get('processing_start'):
         elapsed = datetime.datetime.now() - order['processing_start']
-        if elapsed.total_seconds() > 300: 
+        if elapsed.total_seconds() > 300:
             order['status'] = 'Paid'
             socketio.emit('order_update', {'order_id': order_id, 'status': 'Paid', 'user_email': order['user_email']})
     return jsonify({'status': order['status']})
+
+@app.route('/edit_profile', methods=['POST'])
+def edit_profile():
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    new_name = data.get('name')
+    new_email = data.get('email')
+
+    if not new_name or not new_email:
+        return jsonify({'message': 'Name and email are required'}), 400
+
+    existing_user = User.query.filter_by(email=new_email).first()
+    if existing_user and existing_user.email != user_email:
+        return jsonify({'message': 'Email already in use'}), 400
+    
+    user = User.query.filter_by(email=user_email).first()
+    if user:
+        user.name = new_name
+        user.email = new_email
+        db.session.commit()
+        session['user'] = new_email 
+        _load_users_from_db() 
+        return jsonify({'message': 'Profile updated successfully'}), 200
+    else:
+        return jsonify({'message': 'User not found'}), 404
+
+@app.route('/remove_favorite_ajax/<fav_id>', methods=['POST'])
+def remove_favorite_ajax(fav_id):
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'message': 'Not logged in'}), 401
+    return jsonify({'message': 'Favorite removed successfully'}), 200
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
