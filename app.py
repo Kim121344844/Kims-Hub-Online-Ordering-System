@@ -467,7 +467,7 @@ def admin_dashboard():
         if email not in orders_per_user:
             orders_per_user[email] = 0
         orders_per_user[email] += 1
-    return render_template('admin_dashboard.html', users=users, total_users=total_users, total_orders=total_orders, total_revenue=total_revenue, all_orders=all_orders, orders_per_user=orders_per_user)
+    return render_template('admin_dashboard.html', users=users, total_users=total_users, total_orders=total_orders, total_revenue=total_revenue, all_orders=all_orders, orders_per_user=orders_per_user, user_email=user_email)
 
 @app.route('/api/orders')
 def api_orders():
@@ -478,7 +478,7 @@ def api_orders():
     if not user or user.get('role') != 'admin':
         return {'error': 'Unauthorized'}, 403
     total_revenue = sum(order['total'] for order in all_orders)
-    return {'orders': all_orders, 'total_users': len(users), 'total_orders': len(all_orders), 'total_revenue': total_revenue}
+    return {'orders': all_orders, 'users': users, 'total_users': len(users), 'total_orders': len(all_orders), 'total_revenue': total_revenue}
 
 @app.route('/api/user_orders')
 def api_user_orders():
@@ -669,6 +669,38 @@ def edit_profile():
         return jsonify({'message': 'Profile updated successfully'}), 200
     else:
         return jsonify({'message': 'User not found'}), 404
+
+@app.route('/remove_user/<email>', methods=['POST'])
+def remove_user(email):
+    user_email = session.get('user')
+    if not user_email:
+        return {'error': 'Not logged in'}, 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return {'error': 'Unauthorized'}, 403
+    # Prevent admin from removing themselves
+    if email == user_email:
+        return {'error': 'Cannot remove yourself'}, 400
+    # Find and remove user from database
+    try:
+        user_to_remove = User.query.filter_by(email=email).first()
+        if user_to_remove:
+            # Also remove all orders associated with this user
+            orders_to_remove = Order.query.filter_by(user_email=email).all()
+            for order in orders_to_remove:
+                db.session.delete(order)
+            db.session.delete(user_to_remove)
+            db.session.commit()
+            # Reload users and orders from database
+            _load_users_from_db()
+            _load_orders_from_db()
+            return {'success': True}
+        else:
+            return {'error': 'User not found'}, 404
+    except Exception as e:
+        print('Error removing user from database:', e)
+        db.session.rollback()
+        return {'error': 'Database error'}, 500
 
 @app.route('/remove_favorite_ajax/<fav_id>', methods=['POST'])
 def remove_favorite_ajax(fav_id):

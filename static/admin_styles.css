@@ -55,7 +55,7 @@
 
 .button-container {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
 }
 
@@ -135,31 +135,4 @@
   display: inline-block;
   text-align: center;
   box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
-}
-
-.user-orders-list {
-  list-style: none;
-  padding: 0;
-  margin: 20px 0;
-}
-
-.user-order-item {
-  background: white;
-  padding: 20px;
-  margin-bottom: 15px;
-  border-radius: 10px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-  border-left: 4px solid #FF6B35;
-  transition: all 0.3s ease;
-  text-align: left;
-  line-height: 1.6;
-}
-
-.user-order-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.2);
-}
-
-.user-order-item strong {
-  color: #FF6B35;
 }

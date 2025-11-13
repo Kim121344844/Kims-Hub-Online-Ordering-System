@@ -40,7 +40,7 @@
 
       <section class="all-orders" style="padding: 60px 40px;">
         <h2>All Orders</h2>
-        <table class="orders-table">
+        <table id="all-orders-table" class="orders-table">
           <thead>
             <tr>
               <th>User Name</th>
@@ -92,17 +92,60 @@
         </table>
       </section>
 
-      <section class="orders-per-user" style="padding: 60px 40px; background-color: #f9f9f9;">
+      <section class="users-table" style="padding: 60px 40px;">
+        <h2>All Users</h2>
+        <table id="all-users-table" class="orders-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Role</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users if user.role != 'admin' %}
+            <tr>
+              <td>{{ user.name }}</td>
+              <td>{{ user.email }}</td>
+              <td>{{ user.phone }}</td>
+              <td>{{ user.role }}</td>
+              <td class="actions-cell">
+                <div class="button-container">
+                  <button type="button" class="btn btn-danger" onclick="removeUser('{{ user.email }}')">Remove User</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="orders-per-user" style="padding: 60px 40px;">
         <h2>Orders Per User</h2>
-        <ul class="user-orders-list">
-          {% for email, count in orders_per_user.items() %}
-          <li class="user-order-item">
-            <strong>{{ email }}:</strong> {{ count }} orders
-          </li>
-          {% else %}
-          <li class="user-order-item">No orders yet.</li>
-          {% endfor %}
-        </ul>
+        <table id="orders-per-user-table" class="orders-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Role</th>
+              <th>Number of Orders</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users if user.role != 'admin' %}
+            <tr>
+              <td>{{ user.name }}</td>
+              <td>{{ user.email }}</td>
+              <td>{{ user.phone }}</td>
+              <td>{{ user.role }}</td>
+              <td>{{ orders_per_user.get(user.email, 0) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </section>
     </div>
   </div>
@@ -128,8 +171,9 @@
         if (response.ok) {
           const data = await response.json();
           updateOrdersTable(data.orders);
+          updateUsersTable(data.users);
           updateStats(data.total_users, data.total_orders, data.total_revenue);
-          updateOrdersPerUser(data.orders);
+          updateOrdersPerUser(data.orders, data.users);
         } else {
           console.error('Failed to fetch orders:', response.status);
         }
@@ -140,7 +184,7 @@
 
     // Function to update the orders table
     function updateOrdersTable(orders) {
-      const tbody = document.querySelector('.orders-table tbody');
+      const tbody = document.querySelector('#all-orders-table tbody');
       tbody.innerHTML = '';
       orders.forEach((order) => {
         const row = document.createElement('tr');
@@ -172,6 +216,30 @@
       });
     }
 
+    // Function to update the users table
+    function updateUsersTable(users) {
+      const tbody = document.querySelector('#all-users-table tbody');
+      tbody.innerHTML = '';
+      const currentUserEmail = '{{ user_email }}'; // Get current user email from template
+      users.forEach((user) => {
+        if (user.role !== 'admin') {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${user.name}</td>
+            <td>${user.email}</td>
+            <td>${user.phone}</td>
+            <td>${user.role}</td>
+            <td class="actions-cell">
+              <div class="button-container">
+                <button type="button" class="btn btn-danger" onclick="removeUser('${user.email}')">Remove User</button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(row);
+        }
+      });
+    }
+
     // Function to update stats
     function updateStats(totalUsers, totalOrders, totalRevenue) {
       document.querySelector('.stat-card:nth-child(1) p').textContent = totalUsers;
@@ -180,7 +248,7 @@
     }
 
     // Function to update orders per user
-    function updateOrdersPerUser(orders) {
+    function updateOrdersPerUser(orders, users) {
       const ordersPerUser = {};
       orders.forEach(order => {
         const email = order.user_email;
@@ -189,22 +257,21 @@
         }
         ordersPerUser[email]++;
       });
-      const ul = document.querySelector('.user-orders-list');
-      ul.innerHTML = '';
-      const entries = Object.entries(ordersPerUser);
-      if (entries.length > 0) {
-        entries.forEach(([email, count]) => {
-          const li = document.createElement('li');
-          li.className = 'user-order-item';
-          li.innerHTML = `<strong>${email}:</strong> ${count} orders`;
-          ul.appendChild(li);
-        });
-      } else {
-        const li = document.createElement('li');
-        li.className = 'user-order-item';
-        li.textContent = 'No orders yet.';
-        ul.appendChild(li);
-      }
+      const tbody = document.querySelector('#orders-per-user-table tbody');
+      tbody.innerHTML = '';
+      users.forEach((user) => {
+        if (user.role !== 'admin') {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${user.name}</td>
+            <td>${user.email}</td>
+            <td>${user.phone}</td>
+            <td>${user.role}</td>
+            <td>${ordersPerUser[user.email] || 0}</td>
+          `;
+          tbody.appendChild(row);
+        }
+      });
     }
 
     // Function to approve order
@@ -249,6 +316,29 @@
         alert('Error cancelling order');
       }
       return false;
+    }
+
+    // Function to remove user
+    async function removeUser(email) {
+      if (confirm('Are you sure you want to remove this user?')) {
+        try {
+          const response = await fetch(`/remove_user/${email}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          });
+          if (response.ok) {
+            fetchOrders(); // Refresh the data
+            alert('User removed successfully');
+          } else {
+            alert('Failed to remove user');
+          }
+        } catch (error) {
+          console.error('Error removing user:', error);
+          alert('Error removing user');
+        }
+      }
     }
 
     // Fetch orders on page load and set up polling
