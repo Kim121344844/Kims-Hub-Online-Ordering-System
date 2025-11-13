@@ -2,18 +2,35 @@ import os
 import uuid
 import requests
 import datetime
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+import random
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_socketio import SocketIO, emit, join_room
 from dotenv import load_dotenv
-from models import db, User, Order
+from models import db, User, Order, OTP
 from config import Config
+from werkzeug.security import generate_password_hash
+from flask_mail import Mail, Message
 
 load_dotenv()
+otp_storage = {}
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# -----------------------------
+# Flask-Mail Configuration
+# -----------------------------
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'users12345.com@gmail.com'
+app.config['MAIL_PASSWORD'] = 'uvvl kkan hlih cqun'  # replace with App Password
+app.config['MAIL_DEFAULT_SENDER'] = 'users12345.com@gmail.com'
+
 db.init_app(app)
 socketio = SocketIO(app)
+mail = Mail(app)
 
 with app.app_context():
     db.create_all()
@@ -65,25 +82,55 @@ def login():
     if request.method == 'POST':
         email = request.form['email'].lower()
         password = request.form['password']
+
         if len(password) < 6:
             return render_template('login.html', error='Password length is incorrect. Minimum 6 characters required.', email=email)
         
-        # Find user by email
-
         user = next((u for u in users if u['email'] == email), None)
-        if user:
-            from werkzeug.security import check_password_hash
-            if check_password_hash(user['password'], password):
-                session['user'] = email
-                if user.get('role') == 'admin':
-                    return redirect(url_for('admin_dashboard'))
-                else:
-                    return redirect(url_for('dashboard'))
-            else:
-                return render_template('login.html', error='Password is incorrect.', email=email)
-        else:
+        if not user:
             return render_template('login.html', error='Email not registered.', email=email)
+        
+        from werkzeug.security import check_password_hash
+        if not check_password_hash(user['password'], password):
+            return render_template('login.html', error='Password is incorrect.', email=email)
+
+        # Check if user is admin
+        if user.get('role') == 'admin':
+            # Admin login directly without OTP
+            session['user'] = email
+            flash("Login successful!", "success")
+            return redirect(url_for('admin_dashboard'))
+        else:
+            # Regular user: Generate and send login OTP
+            from otp import generate_otp, send_otp_email, store_otp_in_db
+            otp = generate_otp()
+            stored_otp = store_otp_in_db(email, otp)
+
+            if not send_otp_email(email, user['name'], otp):
+                db.session.delete(stored_otp)
+                db.session.commit()
+                return render_template('login.html', error='Failed to send OTP. Please try again later.', email=email)
+
+            # Redirect to login OTP verification page
+            return redirect(url_for('verify_login_otp', email=email))
+
     return render_template('login.html')
+
+@app.route('/verify_login_otp/<email>', methods=['GET', 'POST'])
+def verify_login_otp(email):
+    if request.method == 'POST':
+        otp_input = request.form['otp']
+        from otp import verify_otp_from_db
+        success, message = verify_otp_from_db(email, otp_input)
+        if success:
+            session['user'] = email
+            flash(message, "success")
+            return redirect(url_for('dashboard'))
+        else:
+            flash(message, "error")
+
+    return render_template('verify_login_otp.html', email=email)
+
 
 @app.route('/dashboard')
 def dashboard():

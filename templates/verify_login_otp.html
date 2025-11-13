@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Verify OTP - Kim's Food Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='otp_style.css') }}">
+</head>
+<body>
+  <div class="otp-container">
+    <h2>Verify Your OTP</h2>
+    <p>We sent an OTP to <strong>{{ email }}</strong>. Enter it below to continue.</p>
+
+    {% if error %}
+      <p class="error-msg">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" class="otp-form">
+      <input type="text" name="otp" placeholder="Enter 6-digit OTP" maxlength="6" required>
+      <button type="submit">Verify OTP</button>
+    </form>
+
+    <p class="note">OTP will expire in 5 minutes.</p>
+  </div>
+</body>
+</html>

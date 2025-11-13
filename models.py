@@ -13,6 +13,17 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.email}>'
 
+class OTP(db.Model):
+    __tablename__ = 'otps'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), nullable=False)
+    otp_code = db.Column(db.String(6), nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
+
+    def __repr__(self):
+        return f'<OTP {self.email} - {self.otp_code}>'
+
 class Order(db.Model):
     __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True)

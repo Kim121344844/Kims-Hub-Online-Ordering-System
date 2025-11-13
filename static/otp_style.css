@@ -1,0 +1,121 @@
+/* OTP Page Styles */
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #FFF8E1 0%, #FFE5B4 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    color: #4A4A4A;
+}
+
+.otp-container {
+    background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+    padding: 40px 30px;
+    border-radius: 20px;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.1);
+    width: 350px;
+    text-align: center;
+    border: 2px solid rgba(255, 107, 53, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.otp-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.05), transparent);
+    transition: left 0.6s ease;
+}
+
+.otp-container:hover::before {
+    left: 100%;
+}
+
+.otp-container h2 {
+    margin-bottom: 15px;
+    color: #FF6B35;
+    font-weight: 700;
+    font-size: 2rem;
+}
+
+.otp-container p {
+    margin-bottom: 20px;
+    color: #4A4A4A;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.error-msg {
+    color: #e63946;
+    font-size: 13px;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.otp-form input {
+    width: 100%;
+    padding: 16px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 107, 53, 0.2);
+    font-size: 16px;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.8);
+    box-sizing: border-box;
+}
+
+.otp-form input:focus {
+    border-color: #FF6B35;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+    transform: translateY(-2px);
+}
+
+.otp-form button {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%);
+    color: white;
+    font-size: 16px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.otp-form button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.otp-form button:hover::before {
+    left: 100%;
+}
+
+.otp-form button:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(255, 107, 53, 0.4);
+}
+
+.note {
+    margin-top: 15px;
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
