@@ -615,6 +615,31 @@ header {
   background: rgba(255, 255, 255, 1);
 }
 
+#add-item-form select {
+  width: 100%;
+  padding: 12px 12px 12px 40px;
+  border: 2px solid rgba(255, 107, 53, 0.2);
+  border-radius: 10px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.8) url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FF6B35"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 10px center;
+  background-size: 20px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  cursor: pointer;
+}
+
+#add-item-form select:focus {
+  outline: none;
+  border-color: #FF6B35;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 1);
+}
+
 #add-item-form input[type="text"] {
   background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FF6B35"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>');
   background-repeat: no-repeat;
@@ -1646,18 +1671,20 @@ header {
   gap: 10px;
 }
 
-.item-edit .item-name,
-.item-edit .item-price {
+.item-edit .item-name {
   flex: 1;
   padding: 8px 12px;
   border: 2px solid rgba(255, 107, 53, 0.2);
   border-radius: 8px;
   font-size: 14px;
   transition: all 0.3s ease;
+  appearance: none;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.8) url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FF6B35"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 8px center;
+  background-size: 16px;
 }
 
-.item-edit .item-name:focus,
-.item-edit .item-price:focus {
+.item-edit .item-name:focus {
   outline: none;
   border-color: #FF6B35;
   box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);

@@ -18,10 +18,38 @@
       <input type="password" name="password" placeholder="Password" required>
       <button type="submit">Login</button>
     </form>
+    <p style="text-align: center; margin-top: 15px;">
+      <a href="#" id="forgot-password-link" style="color: #e63946; text-decoration: none;">Forgot Password?</a>
+    </p>
   </section>
+
+  <!-- Forgot Password Modal -->
+  <div id="forgot-password-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Reset Password</h2>
+      <div id="step-1">
+        <form id="forgot-password-form" class="form-box">
+          <input type="email" id="reset-email" name="email" placeholder="Enter your email" required>
+          <button type="submit">Send Reset Code</button>
+        </form>
+      </div>
+      <div id="step-2" style="display: none;">
+        <form id="reset-password-form" class="form-box">
+          <input type="text" id="reset-otp" name="otp" placeholder="Enter OTP" required>
+          <input type="password" id="new-password" name="new_password" placeholder="New Password" required>
+          <input type="password" id="confirm-password" name="confirm_password" placeholder="Confirm New Password" required>
+          <button type="submit">Reset Password</button>
+        </form>
+      </div>
+      <p id="modal-message" style="text-align: center; margin-top: 15px;"></p>
+    </div>
+  </div>
 
   <footer>
     <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
   </footer>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

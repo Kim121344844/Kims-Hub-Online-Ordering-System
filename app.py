@@ -10,11 +10,25 @@ from models import db, User, Order, OTP, ChatMessage
 from config import Config
 from werkzeug.security import generate_password_hash
 from flask_mail import Mail, Message
+from otp import generate_otp, send_otp_email, store_otp_in_db, send_password_reset_otp_email
 
 load_dotenv()
 otp_storage = {}
 users = []
 all_orders = []
+
+# Menu items with fixed prices
+MENU_ITEMS = {
+    'Burger': 800,
+    'Pizza': 1200,
+    'Tacos': 600,
+    'Main Course': 1500,
+    'Mexican Food': 1000,
+    'Filipino Food': 500,
+    'Healthy Options': 700,
+    'Dessert': 400,
+    'Drinks': 200
+}
 
 def _load_users_from_db():
     global users
@@ -108,7 +122,6 @@ def login():
             return redirect(url_for('admin_dashboard'))
         else:
             # Regular user: Generate and send login OTP
-            from otp import generate_otp, send_otp_email, store_otp_in_db
             otp = generate_otp()
             stored_otp = store_otp_in_db(email, otp)
 
@@ -136,6 +149,50 @@ def verify_login_otp(email):
             flash(message, "error")
 
     return render_template('verify_login_otp.html', email=email)
+
+
+
+@app.route('/reset_password/<email>', methods=['GET', 'POST'])
+def reset_password(email):
+    if request.method == 'POST':
+        otp_input = request.form['otp']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+
+        if len(new_password) < 6:
+            flash('Password length is incorrect. Minimum 6 characters required.', 'error')
+            return render_template('reset_password.html', email=email)
+
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('reset_password.html', email=email)
+
+        from otp import verify_password_reset_otp
+        success, message = verify_password_reset_otp(email, otp_input)
+        if not success:
+            flash(message, 'error')
+            return render_template('reset_password.html', email=email)
+
+        # Update password
+        user = next((u for u in users if u['email'] == email), None)
+        if user:
+            from werkzeug.security import generate_password_hash
+            hashed_password = generate_password_hash(new_password, method='pbkdf2:sha256:600000', salt_length=8)
+            # Update in database
+            db_user = User.query.filter_by(email=email).first()
+            if db_user:
+                db_user.password = hashed_password
+                db.session.commit()
+                # Reload users from database
+                _load_users_from_db()
+                flash('Password reset successful! Please login with your new password.', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash('User not found.', 'error')
+        else:
+            flash('User not found.', 'error')
+
+    return render_template('reset_password.html', email=email)
 
 
 @app.route('/dashboard')
@@ -229,13 +286,20 @@ def logout():
 @app.route('/add_item', methods=['POST'])
 def add_item():
     item_name = request.form['item_name']
-    item_price = float(request.form['item_price'])
     quantity = int(request.form.get('quantity', 1))
 
     # Validate quantity
     if quantity <= 0 or quantity > 10:
         flash('Please select a quantity between 1 and 10.', 'error')
         return redirect(url_for('menu'))
+
+    # Validate item name: must be on the menu
+    if not item_name.strip() or item_name not in MENU_ITEMS:
+        flash('Invalid item. Only menu items are allowed.', 'error')
+        return redirect(url_for('menu'))
+
+    # Get price from menu
+    item_price = MENU_ITEMS[item_name]
 
     cart = session.get('cart', [])
 
@@ -283,8 +347,15 @@ def reorder(order_id):
 @app.route('/add_item_payment', methods=['POST'])
 def add_item_payment():
     item_name = request.form['item_name']
-    item_price = float(request.form['item_price'])
     quantity = int(request.form.get('quantity', 1))
+
+    # Validate item name: must be on the menu
+    if not item_name.strip() or item_name not in MENU_ITEMS:
+        return {'success': False, 'error': 'Invalid item. Only menu items are allowed.'}, 400
+
+    # Get price from menu
+    item_price = MENU_ITEMS[item_name]
+
     cart = session.get('cart', [])
 
     # Check if item already exists
@@ -302,8 +373,15 @@ def edit_item_payment(index):
     cart = session.get('cart', [])
     if 0 <= index < len(cart):
         item_name = request.form['item_name']
-        item_price = float(request.form['item_price'])
         quantity = int(request.form.get('quantity', cart[index]['quantity']))
+
+        # Validate item name: must be on the menu
+        if not item_name.strip() or item_name not in MENU_ITEMS:
+            return {'success': False, 'error': 'Invalid item. Only menu items are allowed.'}, 400
+
+        # Get price from menu
+        item_price = MENU_ITEMS[item_name]
+
         cart[index] = {'name': item_name, 'price': item_price, 'quantity': quantity}
         session['cart'] = cart
     total = sum(item['price'] * item['quantity'] for item in cart)
@@ -814,6 +892,27 @@ def handle_send_message(data):
         except Exception as e:
             print('Error in socket send message:', e)
             db.session.rollback()
+
+@app.route('/forgot_password', methods=['POST'])
+def forgot_password():
+    email = request.form.get('email')
+
+    if not email:
+        return jsonify({'message': 'Email is required.'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'message': 'Email not registered.'}), 400
+
+    otp = generate_otp()
+    store_otp_in_db(email, otp)
+
+    if send_password_reset_otp_email(email, user.name, otp):
+        return jsonify({'message': 'Reset code sent to your email.'}), 200
+    else:
+        return jsonify({'message': 'Failed to send email. Please try again.'}), 500
+
+
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

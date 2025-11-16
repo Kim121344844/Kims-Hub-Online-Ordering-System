@@ -6,6 +6,117 @@ menuBtn.addEventListener('click', () => {
   navLinks.classList.toggle('active');
 });
 
+// Forgot Password Modal
+const forgotPasswordLink = document.getElementById('forgot-password-link');
+const modal = document.getElementById('forgot-password-modal');
+const closeBtn = document.getElementsByClassName('close')[0];
+const forgotPasswordForm = document.getElementById('forgot-password-form');
+const resetPasswordForm = document.getElementById('reset-password-form');
+const modalMessage = document.getElementById('modal-message');
+const step1 = document.getElementById('step-1');
+const step2 = document.getElementById('step-2');
+
+if (forgotPasswordLink) {
+  forgotPasswordLink.onclick = function(event) {
+    event.preventDefault();
+    modal.style.display = 'block';
+    step1.style.display = 'block';
+    step2.style.display = 'none';
+    modalMessage.textContent = '';
+  }
+}
+
+if (closeBtn) {
+  closeBtn.onclick = function() {
+    modal.style.display = 'none';
+    modalMessage.textContent = '';
+    forgotPasswordForm.reset();
+    if (resetPasswordForm) resetPasswordForm.reset();
+  }
+}
+
+window.onclick = function(event) {
+  if (event.target == modal) {
+    modal.style.display = 'none';
+    modalMessage.textContent = '';
+    forgotPasswordForm.reset();
+    if (resetPasswordForm) resetPasswordForm.reset();
+  }
+}
+
+if (forgotPasswordForm) {
+  forgotPasswordForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const email = document.getElementById('reset-email').value;
+
+    try {
+      const response = await fetch('/forgot_password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `email=${encodeURIComponent(email)}`
+      });
+
+      const result = await response.json();
+      modalMessage.textContent = result.message;
+      modalMessage.style.color = response.ok ? 'green' : 'red';
+
+      if (response.ok) {
+        step1.style.display = 'none';
+        step2.style.display = 'block';
+      }
+    } catch (error) {
+      modalMessage.textContent = 'An error occurred. Please try again.';
+      modalMessage.style.color = 'red';
+    }
+  });
+}
+
+if (resetPasswordForm) {
+  resetPasswordForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const otp = document.getElementById('reset-otp').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const email = document.getElementById('reset-email').value;
+
+    if (newPassword !== confirmPassword) {
+      modalMessage.textContent = 'Passwords do not match.';
+      modalMessage.style.color = 'red';
+      return;
+    }
+
+    try {
+      const response = await fetch(`/reset_password/${email}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `otp=${encodeURIComponent(otp)}&new_password=${encodeURIComponent(newPassword)}&confirm_password=${encodeURIComponent(confirmPassword)}`
+      });
+
+      if (response.ok) {
+        modalMessage.textContent = 'Password reset successful! You can now login with your new password.';
+        modalMessage.style.color = 'green';
+        setTimeout(() => {
+          modal.style.display = 'none';
+          modalMessage.textContent = '';
+          forgotPasswordForm.reset();
+          resetPasswordForm.reset();
+        }, 2000);
+      } else {
+        const result = await response.json();
+        modalMessage.textContent = result.message || 'Failed to reset password.';
+        modalMessage.style.color = 'red';
+      }
+    } catch (error) {
+      modalMessage.textContent = 'An error occurred. Please try again.';
+      modalMessage.style.color = 'red';
+    }
+  });
+}
+
 // Handle login form submission
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
@@ -286,5 +397,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.location.pathname === '/dashboard') {
     fetchUserOrders();
     setInterval(fetchUserOrders, 5000); // Update every 5 seconds
+  }
+
+  // Prevent fetchUserOrders from running on login page
+  if (window.location.pathname === '/login') {
+    // Do nothing for login page
   }
 });

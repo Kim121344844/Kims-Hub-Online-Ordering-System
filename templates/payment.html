@@ -20,8 +20,18 @@
           <div id="add-item-form">
             <h4>Add Item</h4>
             <form id="add-item">
-              <input type="text" id="new-item-name" placeholder="Item Name" required>
-              <input type="number" id="new-item-price" placeholder="Price" step="0.01" required>
+              <select id="new-item-name" required>
+                <option value="">Select Item</option>
+                <option value="Burger">Burger - ₱800</option>
+                <option value="Pizza">Pizza - ₱1200</option>
+                <option value="Tacos">Tacos - ₱600</option>
+                <option value="Main Course">Main Course - ₱1500</option>
+                <option value="Mexican Food">Mexican Food - ₱1000</option>
+                <option value="Filipino Food">Filipino Food - ₱500</option>
+                <option value="Healthy Options">Healthy Options - ₱700</option>
+                <option value="Dessert">Dessert - ₱400</option>
+                <option value="Drinks">Drinks - ₱200</option>
+              </select>
               <button type="submit" class="btn add-item-btn">Add Item</button>
             </form>
           </div>
@@ -32,10 +42,20 @@
                 <span class="item-name-display">{{ item.name }} (Qty: {{ item.quantity }})</span>
                 <span class="item-price-display">₱{{ "%.2f"|format(item.price * item.quantity) }}</span>
               </div>
-              <div class="item-edit" style="display:none;">
-                <input type="text" class="item-name" value="{{ item.name }}">
-                <input type="number" class="item-price" value="{{ item.price }}" step="0.01">
-              </div>
+          <div class="item-edit" style="display:none;">
+            <select class="item-name">
+              <option value="{{ item.name }}" selected>{{ item.name }}</option>
+              <option value="Burger">Burger</option>
+              <option value="Pizza">Pizza</option>
+              <option value="Tacos">Tacos</option>
+              <option value="Main Course">Main Course</option>
+              <option value="Mexican Food">Mexican Food</option>
+              <option value="Filipino Food">Filipino Food</option>
+              <option value="Healthy Options">Healthy Options</option>
+              <option value="Dessert">Dessert</option>
+              <option value="Drinks">Drinks</option>
+            </select>
+          </div>
               <div class="item-actions">
                 <button class="edit-btn" title="Edit Item"><i class="edit-icon">✏️</i> Edit</button>
                 <button class="save-btn" style="display:none;" title="Save Changes"><i class="save-icon">💾</i> Save</button>
@@ -130,8 +150,18 @@
             <span class="item-price-display">₱${(item.price * item.quantity).toFixed(2)}</span>
           </div>
           <div class="item-edit" style="display:none;">
-            <input type="text" class="item-name" value="${item.name}">
-            <input type="number" class="item-price" value="${item.price}" step="0.01">
+            <select class="item-name">
+              <option value="${item.name}" selected>${item.name}</option>
+              <option value="Burger">Burger</option>
+              <option value="Pizza">Pizza</option>
+              <option value="Tacos">Tacos</option>
+              <option value="Main Course">Main Course</option>
+              <option value="Mexican Food">Mexican Food</option>
+              <option value="Filipino Food">Filipino Food</option>
+              <option value="Healthy Options">Healthy Options</option>
+              <option value="Dessert">Dessert</option>
+              <option value="Drinks">Drinks</option>
+            </select>
           </div>
           <div class="item-actions">
             <button class="edit-btn" title="Edit Item"><i class="edit-icon">✏️</i> Edit</button>
@@ -147,8 +177,7 @@
     // Function to add item
     async function addItem() {
       const name = document.getElementById('new-item-name').value;
-      const price = parseFloat(document.getElementById('new-item-price').value);
-      if (!name || isNaN(price)) return;
+      if (!name) return;
 
       try {
         const response = await fetch('/add_item_payment', {
@@ -157,15 +186,13 @@
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
-            item_name: name,
-            item_price: price
+            item_name: name
           })
         });
         if (response.ok) {
           const data = await response.json();
           updateCartDisplay(data.cart, data.total);
           document.getElementById('new-item-name').value = '';
-          document.getElementById('new-item-price').value = '';
         }
       } catch (error) {
         console.error('Error adding item:', error);
@@ -205,7 +232,6 @@
     async function saveItem(index) {
       const itemDiv = document.querySelector(`.cart-item[data-index="${index}"]`);
       const nameInput = itemDiv.querySelector('.item-name');
-      const priceInput = itemDiv.querySelector('.item-price');
 
       try {
         const response = await fetch(`/edit_item_payment/${index}`, {
@@ -214,8 +240,7 @@
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
-            item_name: nameInput.value,
-            item_price: parseFloat(priceInput.value)
+            item_name: nameInput.value
           })
         });
         if (response.ok) {
