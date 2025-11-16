@@ -1,4 +1,112 @@
 /* Admin Dashboard Styles */
+
+.chat-section {
+  background-color: #f9f9f9;
+}
+
+.chat-container {
+  display: flex;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.user-list {
+  flex: 1;
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.user-list h3 {
+  margin-top: 0;
+  color: #333;
+}
+
+.user-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.user-item {
+  padding: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.3s;
+}
+
+.user-item:hover {
+  background-color: #f0f0f0;
+}
+
+.user-item.selected {
+  background-color: #e0e0e0;
+  font-weight: bold;
+}
+
+.chat-window {
+  flex: 2;
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  height: 400px;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background-color: #fafafa;
+}
+
+.message {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.message.sent {
+  background-color: #007bff;
+  color: white;
+  text-align: right;
+}
+
+.message.received {
+  background-color: #e9ecef;
+  color: #333;
+}
+
+.message-input {
+  display: flex;
+  gap: 10px;
+}
+
+.message-input input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.message-input button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.message-input button:hover {
+  background-color: #0056b3;
+}
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -135,4 +243,53 @@
   display: inline-block;
   text-align: center;
   box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+/* Notifications Styles */
+.notifications-container {
+  margin-bottom: 20px;
+}
+
+.notification {
+  background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+  animation: slideIn 0.5s ease-out;
+}
+
+.notification span {
+  flex: 1;
+  font-weight: 500;
+}
+
+.close-notification {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 10px;
+  transition: opacity 0.3s;
+}
+
+.close-notification:hover {
+  opacity: 0.7;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }

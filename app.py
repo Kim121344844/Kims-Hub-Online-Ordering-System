@@ -6,13 +6,26 @@ import random
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_socketio import SocketIO, emit, join_room
 from dotenv import load_dotenv
-from models import db, User, Order, OTP
+from models import db, User, Order, OTP, ChatMessage
 from config import Config
 from werkzeug.security import generate_password_hash
 from flask_mail import Mail, Message
 
 load_dotenv()
 otp_storage = {}
+users = []
+all_orders = []
+
+def _load_users_from_db():
+    global users
+    with app.app_context():
+        try:
+            users_db = User.query.all()
+            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role} for u in users_db]
+            print(f'Loaded {len(users)} users from database')
+        except Exception as e:
+            print('Error loading users from database:', e)
+            users = []
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -31,6 +44,15 @@ mail = Mail(app)
 
 with app.app_context():
     db.create_all()
+    # Create default admin user if not exists
+    admin_user = User.query.filter_by(role='admin').first()
+    if not admin_user:
+        hashed_password = generate_password_hash('admin123', method='pbkdf2:sha256:600000', salt_length=8)
+        admin_user = User(name='Admin', email='admin@kimshub.com', password=hashed_password, role='admin')
+        db.session.add(admin_user)
+        db.session.commit()
+        print('Default admin user created: admin@kimshub.com / admin123')
+    _load_users_from_db()  # Always load users from database on app start
     print('Database tables created or verified.')
 
 # Payment API functions
@@ -48,19 +70,6 @@ def initiate_paymaya_payment(amount, order_id, description):
 @app.context_processor
 def inject_users():
     return {'users': users}
-
-def _load_users_from_db():
-    global users
-    with app.app_context():
-        try:
-            users_db = User.query.all()
-            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role} for u in users_db]
-            print(f'Loaded {len(users)} users from database')
-        except Exception as e:
-            print('Error loading users from database:', e)
-            users = []
-
-_load_users_from_db()
 
 @app.route('/')
 def home():
@@ -172,9 +181,12 @@ def dashboard():
         {'name': 'Tacos', 'image': 'images/Tacos.jpg', 'price': 100.00}
     ]
 
+    # Find admin email for chat
+    admin_email = next((u['email'] for u in users if u.get('role') == 'admin'), None)
+
     return render_template('dashboard.html', user_name=user_name, user_email=user_email, favorites=favorites, cart=cart,
                            cart_total=cart_total, total_orders=total_orders, total_spent=total_spent, favorite_category=favorite_category,
-                           recent_orders=recent_orders, recommendations=recommendations)
+                           recent_orders=recent_orders, recommendations=recommendations, admin_email=admin_email)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -623,7 +635,7 @@ def handle_connect():
         join_room(user_email)
         user = next((u for u in users if u['email'] == user_email), None)
         if user and user.get('role') == 'admin':
-            join_room('admin')
+            join_room(user_email)
         print(f'User {user_email} connected')
 
 @socketio.on('disconnect')
@@ -708,6 +720,100 @@ def remove_favorite_ajax(fav_id):
     if not user_email:
         return jsonify({'message': 'Not logged in'}), 401
     return jsonify({'message': 'Favorite removed successfully'}), 200
+
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    data = request.get_json()
+    receiver_email = data.get('receiver_email')
+    message = data.get('message')
+
+    if not receiver_email or not message:
+        return jsonify({'error': 'Receiver email and message are required'}), 400
+
+    # Validate receiver exists
+    receiver = next((u for u in users if u['email'] == receiver_email), None)
+    if not receiver:
+        return jsonify({'error': 'Receiver not found'}), 404
+
+    # Determine the room to emit to
+    admin_email = next((u['email'] for u in users if u.get('role') == 'admin'), None)
+    if receiver_email == admin_email:
+        room = admin_email
+    else:
+        room = receiver_email
+
+    # Save message to DB
+    try:
+        new_message = ChatMessage(sender_email=user_email, receiver_email=receiver_email, message=message)
+        db.session.add(new_message)
+        db.session.commit()
+        # Emit to receiver room
+        socketio.emit('receive_message', {
+            'sender_email': user_email,
+            'message': message,
+            'timestamp': new_message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        }, room=room)
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print('Error sending message:', e)
+        db.session.rollback()
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/get_messages')
+def get_messages():
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    # Get messages where user is sender or receiver
+    try:
+        messages = ChatMessage.query.filter(
+            ((ChatMessage.sender_email == user_email) | (ChatMessage.receiver_email == user_email))
+        ).order_by(ChatMessage.timestamp).all()
+        message_list = [{
+            'id': msg.id,
+            'sender_email': msg.sender_email,
+            'receiver_email': msg.receiver_email,
+            'message': msg.message,
+            'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'is_read': msg.is_read
+        } for msg in messages]
+        return jsonify({'messages': message_list}), 200
+    except Exception as e:
+        print('Error fetching messages:', e)
+        return jsonify({'error': 'Database error'}), 500
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    user_email = session.get('user')
+    if not user_email:
+        return
+    receiver_email = data.get('receiver_email')
+    message = data.get('message')
+    if receiver_email and message:
+        # Determine the room to emit to
+        admin_email = next((u['email'] for u in users if u.get('role') == 'admin'), None)
+        if receiver_email == admin_email:
+            room = admin_email
+        else:
+            room = receiver_email
+        # Save and emit as above
+        try:
+            new_message = ChatMessage(sender_email=user_email, receiver_email=receiver_email, message=message)
+            db.session.add(new_message)
+            db.session.commit()
+            socketio.emit('receive_message', {
+                'sender_email': user_email,
+                'message': message,
+                'timestamp': new_message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            }, room=room)
+        except Exception as e:
+            print('Error in socket send message:', e)
+            db.session.rollback()
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

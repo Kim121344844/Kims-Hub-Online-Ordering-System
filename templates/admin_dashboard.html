@@ -147,6 +147,28 @@
           </tbody>
         </table>
       </section>
+
+      <section class="chat-section" style="padding: 60px 40px;">
+        <h2>Chat with Users</h2>
+        <div id="notifications" class="notifications-container"></div>
+        <div class="chat-container">
+          <div class="user-list">
+            <h3>Users</h3>
+            <ul id="user-list">
+              {% for user in users if user.role != 'admin' %}
+              <li class="user-item" data-email="{{ user.email }}">{{ user.name }} ({{ user.email }})</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="chat-window">
+            <div id="chat-messages" class="messages"></div>
+            <div class="message-input">
+              <input type="text" id="message-input" placeholder="Type your message...">
+              <button id="send-button">Send</button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -164,6 +186,112 @@
       // Refresh the orders table
       fetchOrders();
     });
+
+    let selectedUser = null;
+
+    // Chat functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      fetchOrders();
+      setInterval(fetchOrders, 5000); // Update every 5 seconds
+
+      // Input is always enabled; send will check for selected user
+
+      // User selection
+      document.getElementById('user-list').addEventListener('click', function(e) {
+        if (e.target.classList.contains('user-item')) {
+          const userEmail = e.target.getAttribute('data-email');
+          selectUser(userEmail);
+        }
+      });
+
+      // Send message
+      document.getElementById('send-button').addEventListener('click', sendMessage);
+      document.getElementById('message-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          sendMessage();
+        }
+      });
+
+      // Socket for receiving messages
+      socket.on('receive_message', function(data) {
+        if (selectedUser === data.sender_email) {
+          displayMessage(data.message, 'received', data.timestamp, data.sender_email);
+        } else {
+          // Show notification for new messages from unselected users
+          showNotification(`New message from ${data.sender_email}: ${data.message}`, data.sender_email);
+        }
+      });
+    });
+
+    function selectUser(email) {
+      selectedUser = email;
+      document.querySelectorAll('.user-item').forEach(item => item.classList.remove('selected'));
+      document.querySelector(`[data-email="${email}"]`).classList.add('selected');
+      loadMessages(email);
+    }
+
+    async function loadMessages(userEmail) {
+      try {
+        const response = await fetch('/get_messages');
+        if (response.ok) {
+          const data = await response.json();
+          const messagesDiv = document.getElementById('chat-messages');
+          messagesDiv.innerHTML = '';
+          data.messages.forEach(msg => {
+            if ((msg.sender_email === userEmail && msg.receiver_email === '{{ user_email }}') ||
+                (msg.sender_email === '{{ user_email }}' && msg.receiver_email === userEmail)) {
+              const type = msg.sender_email === '{{ user_email }}' ? 'sent' : 'received';
+              const sender = type === 'received' ? msg.sender_email : '';
+              displayMessage(msg.message, type, msg.timestamp, sender);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    }
+
+    function displayMessage(message, type, timestamp, sender = '') {
+      const messagesDiv = document.getElementById('chat-messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+      const senderText = type === 'received' ? `<strong>${sender}:</strong> ` : '';
+      messageDiv.innerHTML = `${senderText}${message} <small>${timestamp}</small>`;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('message-input');
+      const message = input.value.trim();
+      if (!selectedUser) {
+        alert('Please select a user to send the message to.');
+        return;
+      }
+      if (!message) return;
+
+      try {
+        const response = await fetch('/send_message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            receiver_email: selectedUser,
+            message: message
+          })
+        });
+        if (response.ok) {
+          displayMessage(message, 'sent', new Date().toLocaleString());
+          input.value = '';
+        } else {
+          alert('Failed to send message');
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Error sending message');
+      }
+    }
     // Function to fetch and update orders
     async function fetchOrders() {
       try {
@@ -341,11 +469,34 @@
       }
     }
 
-    // Fetch orders on page load and set up polling
-    document.addEventListener('DOMContentLoaded', function() {
-      fetchOrders();
-      setInterval(fetchOrders, 5000); // Update every 5 seconds
-    });
+    // Function to show notifications
+    function showNotification(message, senderEmail) {
+      const notificationsDiv = document.getElementById('notifications');
+      const notificationDiv = document.createElement('div');
+      notificationDiv.className = 'notification';
+      notificationDiv.innerHTML = `<span>${message}</span><button class="close-notification">&times;</button>`;
+      notificationsDiv.appendChild(notificationDiv);
+
+      // Make notification clickable to select user
+      notificationDiv.addEventListener('click', () => {
+        selectUser(senderEmail);
+        notificationDiv.remove(); // Remove notification after clicking
+      });
+
+      // Auto-remove after 10 seconds
+      setTimeout(() => {
+        if (notificationDiv.parentNode) {
+          notificationDiv.remove();
+        }
+      }, 10000);
+
+      // Close button
+      notificationDiv.querySelector('.close-notification').addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering the select user event
+        notificationDiv.remove();
+      });
+    }
+
   </script>
 </body>
 </html>
