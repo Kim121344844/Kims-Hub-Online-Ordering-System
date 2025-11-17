@@ -130,8 +130,8 @@ def login():
                 db.session.commit()
                 return render_template('login.html', error='Failed to send OTP. Please try again later.', email=email)
 
-            # Redirect to login OTP verification page
-            return redirect(url_for('verify_login_otp', email=email))
+            # Redirect to login page with OTP modal
+            return redirect(url_for('login', otp_required='true', email=email))
 
     return render_template('login.html')
 
@@ -143,10 +143,9 @@ def verify_login_otp(email):
         success, message = verify_otp_from_db(email, otp_input)
         if success:
             session['user'] = email
-            flash(message, "success")
-            return redirect(url_for('dashboard'))
+            return jsonify({'success': True, 'redirect': url_for('dashboard')})
         else:
-            flash(message, "error")
+            return jsonify({'success': False, 'message': message})
 
     return render_template('verify_login_otp.html', email=email)
 

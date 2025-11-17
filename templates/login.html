@@ -23,7 +23,22 @@
     </p>
   </section>
 
-  <!-- Forgot Password Modal -->
+  <div id="otp-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-otp">&times;</span>
+      <div class="otp-container">
+        <h2>Verify Your OTP</h2>
+        <p style="text-align: center;">We sent an OTP to <strong id="otp-email"></strong>. Enter it below to continue.</p>
+        <div id="otp-error" class="error-msg" style="display: none; text-align: center;"></div>
+        <form id="otp-form" class="form-box">
+          <input type="text" id="otp-input" name="otp" placeholder="Please enter a 6-digit OTP" maxlength="6" required>
+          <button type="submit">Verify OTP</button>
+        </form>
+        <p class="note" style="text-align: center;">OTP will expire in 5 minutes.</p>
+      </div>
+    </div>
+  </div>
+
   <div id="forgot-password-modal" class="modal">
     <div class="modal-content">
       <span class="close">&times;</span>
@@ -36,7 +51,7 @@
       </div>
       <div id="step-2" style="display: none;">
         <form id="reset-password-form" class="form-box">
-          <input type="text" id="reset-otp" name="otp" placeholder="Enter OTP" required>
+          <input type="text" id="reset-otp" name="otp" placeholder="Enter 6-digit OTP" maxlength="6" required>
           <input type="password" id="new-password" name="new_password" placeholder="New Password" required>
           <input type="password" id="confirm-password" name="confirm_password" placeholder="Confirm New Password" required>
           <button type="submit">Reset Password</button>
@@ -51,5 +66,69 @@
   </footer>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    // OTP Modal functionality
+    const otpModal = document.getElementById('otp-modal');
+    const closeOtpBtn = document.querySelector('.close-otp');
+    const otpForm = document.getElementById('otp-form');
+    const otpEmail = document.getElementById('otp-email');
+    const otpError = document.getElementById('otp-error');
+
+    // Show OTP modal if redirected from login with OTP required
+    document.addEventListener('DOMContentLoaded', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('otp_required') === 'true') {
+        otpModal.style.display = 'block';
+        otpEmail.textContent = urlParams.get('email') || '';
+      }
+    });
+
+    // Close OTP modal
+    closeOtpBtn.onclick = function() {
+      otpModal.style.display = 'none';
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      if (event.target == otpModal) {
+        otpModal.style.display = 'none';
+      }
+    }
+
+    // Handle OTP form submission
+    otpForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const otp = document.getElementById('otp-input').value;
+      const email = otpEmail.textContent;
+
+      if (otp.length !== 6) {
+        otpError.textContent = 'Please enter a 6-digit OTP.';
+        otpError.style.display = 'block';
+        return;
+      }
+
+      fetch('/verify_login_otp/' + email, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'otp=' + encodeURIComponent(otp)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = data.redirect;
+        } else {
+          otpError.textContent = data.message;
+          otpError.style.display = 'block';
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        otpError.textContent = 'An error occurred. Please try again.';
+        otpError.style.display = 'block';
+      });
+    });
+  </script>
 </body>
 </html>
