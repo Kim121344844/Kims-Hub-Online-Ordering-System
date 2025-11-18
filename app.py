@@ -911,7 +911,5 @@ def forgot_password():
     else:
         return jsonify({'message': 'Failed to send email. Please try again.'}), 500
 
-
-
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
