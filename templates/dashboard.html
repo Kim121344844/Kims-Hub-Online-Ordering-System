@@ -42,11 +42,6 @@
             <h3 id="total-orders">0</h3>
             <p>Total Orders</p>
           </div>
-          <div class="stat-card">
-            <i class="fas fa-star"></i>
-            <h3>4.8</h3>
-            <p>Average Rating</p>
-          </div>
         </div>
       </section>
 
@@ -160,13 +155,7 @@
         </ul>
       </section>
 
-      <!-- My Reviews Section -->
-      <section class="my-reviews" style="padding: 60px 40px;">
-        <h2><i class="fas fa-star"></i> My Reviews</h2>
-        <div id="reviews-container">
-          <!-- Reviews will be populated by JavaScript -->
-        </div>
-      </section>
+
 
       <!-- Chat Section -->
       <section class="chat-section" style="padding: 60px 40px;">
@@ -335,7 +324,6 @@
     // Fetch user orders on page load
     document.addEventListener('DOMContentLoaded', function() {
       fetchUserOrders();
-      fetchUserReviews();
 
       // Edit Profile Modal
       const editBtn = document.getElementById('edit-profile-btn');

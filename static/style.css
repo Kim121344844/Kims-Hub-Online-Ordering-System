@@ -2393,6 +2393,11 @@ header {
   animation: starSelect 0.4s ease;
 }
 
+.rating-input input[type="radio"]:checked + label,
+.rating-input input[type="radio"]:checked + label ~ label {
+  color: #FF6B35;
+}
+
 @keyframes starSelect {
   0% { transform: scale(1); }
   50% { transform: scale(1.4) rotate(10deg); }

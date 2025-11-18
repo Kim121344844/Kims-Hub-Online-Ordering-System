@@ -222,6 +222,42 @@ document.addEventListener('click', function(event) {
   }
 });
 
+// Rating Modal Functions
+function openRatingModal() {
+  const modal = document.getElementById('rating-modal');
+  modal.style.display = 'block';
+}
+
+function closeRatingModal() {
+  const modal = document.getElementById('rating-modal');
+  modal.style.display = 'none';
+  // Reset form
+  document.querySelectorAll('input[name="rating"]').forEach(radio => radio.checked = false);
+  document.getElementById('rating-comment').value = '';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('rating-modal');
+  if (event.target == modal) {
+    closeRatingModal();
+  }
+}
+
+function submitRating() {
+  const rating = document.querySelector('input[name="rating"]:checked');
+  const comment = document.getElementById('rating-comment').value;
+
+  if (!rating) {
+    alert('Please select a rating.');
+    return;
+  }
+
+  // For now, just show an alert. In a real app, you'd send this to the server.
+  alert(`Thank you for your ${rating.value}-star rating!${comment ? '\nComment: ' + comment : ''}`);
+  closeRatingModal();
+}
+
 
 
 // Payment page item management

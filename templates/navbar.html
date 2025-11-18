@@ -4,6 +4,7 @@
     <li><a href="{{ url_for('home') }}">Home</a></li>
     <li><a href="{{ url_for('menu') }}">Menu</a></li>
     <li><a href="{{ url_for('about') }}">About</a></li>
+    <li><a href="#" onclick="openRatingModal()">Rate Us</a></li>
     {% if session.get('user') %}
       {% for u in users %}
         {% if u.email == session.get('user') %}
@@ -22,3 +23,26 @@
   </ul>
   <button id="menu-toggle" class="menu-btn">☰</button>
 </nav>
+
+<!-- Rating Modal -->
+<div id="rating-modal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeRatingModal()">&times;</span>
+    <h2>Rate Us</h2>
+    <p>How would you rate your experience with Kim's Food Hub?</p>
+    <div class="rating-input">
+      <input type="radio" id="star5" name="rating" value="5">
+      <label for="star5">★</label>
+      <input type="radio" id="star4" name="rating" value="4">
+      <label for="star4">★</label>
+      <input type="radio" id="star3" name="rating" value="3">
+      <label for="star3">★</label>
+      <input type="radio" id="star2" name="rating" value="2">
+      <label for="star2">★</label>
+      <input type="radio" id="star1" name="rating" value="1">
+      <label for="star1">★</label>
+    </div>
+    <textarea id="rating-comment" placeholder="Leave a comment (optional)" rows="4" style="width: 100%; margin-top: 15px; padding: 10px; border: 2px solid rgba(255, 107, 53, 0.2); border-radius: 8px; font-size: 16px;"></textarea>
+    <button onclick="submitRating()" style="margin-top: 15px; background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%); color: white; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; font-weight: 600; font-size: 16px;">Submit Rating</button>
+  </div>
+</div>
