@@ -74,8 +74,9 @@
               <td class="actions-cell">
                 <div class="button-container">
                   <a href="{{ url_for('edit_order', order_id=order.order_id) }}" class="btn btn-primary">Edit</a>
+                  <button type="button" class="btn btn-danger" onclick="removeOrder('{{ order.order_id }}')">Remove Order</button>
                   {% if order.status != 'Cancelled' %}
-                  <button type="button" class="btn btn-danger" onclick="cancelOrder('{{ order.order_id }}')">Cancel Order</button>
+                  <button type="button" class="btn btn-warning" onclick="cancelOrder('{{ order.order_id }}')">Cancel Order</button>
                   {% endif %}
                   {% if order.status == 'Processing' %}
                   <button type="button" class="btn btn-success" onclick="approveOrder('{{ order.order_id }}')">Approve Order</button>
@@ -336,8 +337,9 @@
       tbody.innerHTML = '';
       orders.forEach((order) => {
         let actionButtons = `<a href="/edit_order/${order.order_id}" class="btn btn-primary">Edit</a>`;
+        actionButtons += `<button type="button" class="btn btn-danger" onclick="removeOrder('${order.order_id}')">Remove Order</button>`;
         if (order.status !== 'Cancelled') {
-          actionButtons += `<button type="button" class="btn btn-danger" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>`;
+          actionButtons += `<button type="button" class="btn btn-warning" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>`;
         }
         if (order.status === 'Processing') {
           actionButtons += `<button type="button" class="btn btn-success" onclick="approveOrder('${order.order_id}')">Approve Order</button>`;
@@ -503,7 +505,7 @@
             },
           });
           if (response.ok) {
-            fetchOrders(); 
+            fetchOrders();
             alert('User removed successfully');
           } else {
             alert('Failed to remove user');
@@ -511,6 +513,28 @@
         } catch (error) {
           console.error('Error removing user:', error);
           alert('Error removing user');
+        }
+      }
+    }
+
+    async function removeOrder(orderId) {
+      if (confirm('Are you sure you want to remove this order?')) {
+        try {
+          const response = await fetch(`/remove_order/${orderId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          });
+          if (response.ok) {
+            fetchOrders();
+            alert('Order removed successfully');
+          } else {
+            alert('Failed to remove order');
+          }
+        } catch (error) {
+          console.error('Error removing order:', error);
+          alert('Error removing order');
         }
       }
     }

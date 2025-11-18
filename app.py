@@ -634,6 +634,34 @@ def cancel_order(order_id):
         return {'success': True}
     return {'error': 'Invalid order ID or status'}, 400
 
+@app.route('/remove_order/<order_id>', methods=['POST'])
+def remove_order(order_id):
+    user_email = session.get('user')
+    if not user_email:
+        return {'error': 'Not logged in'}, 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return {'error': 'Unauthorized'}, 403
+    order = next((o for o in all_orders if o['order_id'] == order_id), None)
+    if order:
+        # Delete from database
+        try:
+            order_db = Order.query.filter_by(order_id=order_id).first()
+            if order_db:
+                db.session.delete(order_db)
+                db.session.commit()
+                # Reload orders from database
+                _load_orders_from_db()
+        except Exception as e:
+            print('Error deleting order from database:', e)
+            db.session.rollback()
+            return {'error': 'Database error'}, 500
+
+        # Real time updates
+        socketio.emit('order_update', {'order_id': order_id, 'removed': True, 'user_email': order['user_email']})
+        return {'success': True}
+    return {'error': 'Order not found'}, 404
+
 @app.route('/approve_order/<order_id>', methods=['POST'])
 def approve_order(order_id):
     user_email = session.get('user')
