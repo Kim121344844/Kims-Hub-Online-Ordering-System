@@ -6,7 +6,7 @@ import random
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_socketio import SocketIO, emit, join_room
 from dotenv import load_dotenv
-from models import db, User, Order, OTP, ChatMessage
+from models import db, User, Order, OTP, ChatMessage, Review
 from config import Config
 from werkzeug.security import generate_password_hash
 from flask_mail import Mail, Message
@@ -588,6 +588,12 @@ def api_user_orders():
         recent_order = all_user_orders[-1]
         if recent_order['status'] == 'Delivered':
             notifications.append('Rate your recent order.')
+        elif recent_order['status'] == 'On the way':
+            notifications.append('Your order is on the way!')
+        elif recent_order['status'] == 'Cooking':
+            notifications.append('Your order is being cooked.')
+        elif recent_order['status'] == 'Preparing':
+            notifications.append('Your order is being prepared.')
         elif recent_order['status'] == 'Processing':
             notifications.append('Your order is being processed.')
         elif recent_order['status'] == 'Paid':
@@ -649,6 +655,56 @@ def approve_order(order_id):
         socketio.emit('order_update', {'order_id': order_id, 'status': 'Paid', 'user_email': order['user_email']})
         return {'success': True}
     return {'error': 'Invalid order ID or status'}, 400
+
+@app.route('/update_order_status/<order_id>/<status>', methods=['POST'])
+def update_order_status(order_id, status):
+    user_email = session.get('user')
+    if not user_email:
+        return {'error': 'Not logged in'}, 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return {'error': 'Unauthorized'}, 403
+
+    valid_statuses = ['Paid', 'Preparing', 'Cooking', 'On the way', 'Delivered']
+    if status not in valid_statuses:
+        return {'error': 'Invalid status'}, 400
+
+    order = next((o for o in all_orders if o['order_id'] == order_id), None)
+    if not order:
+        return {'error': 'Order not found'}, 404
+
+    # Validate status transition
+    current_status = order['status']
+    if current_status == 'Processing' and status != 'Paid':
+        return {'error': 'Order must be approved (Paid) first'}, 400
+    elif current_status == 'Paid' and status not in ['Preparing']:
+        return {'error': 'From Paid, order can only go to Preparing'}, 400
+    elif current_status == 'Preparing' and status not in ['Cooking']:
+        return {'error': 'From Preparing, order can only go to Cooking'}, 400
+    elif current_status == 'Cooking' and status not in ['On the way']:
+        return {'error': 'From Cooking, order can only go to On the way'}, 400
+    elif current_status == 'On the way' and status not in ['Delivered']:
+        return {'error': 'From On the way, order can only go to Delivered'}, 400
+    elif current_status == 'Delivered':
+        return {'error': 'Order is already delivered'}, 400
+    elif current_status == 'Cancelled':
+        return {'error': 'Cannot update cancelled order'}, 400
+
+    order['status'] = status
+    # Update database
+    try:
+        order_db = Order.query.filter_by(order_id=order_id).first()
+        if order_db:
+            order_db.status = status
+            db.session.commit()
+    except Exception as e:
+        print('Error updating order status in database:', e)
+        db.session.rollback()
+        return {'error': 'Database error'}, 500
+
+    # Emit real-time updates
+    socketio.emit('order_status_update', {'order_id': order_id, 'status': status, 'user_email': order['user_email']})
+    return {'success': True}
 
 @app.route('/edit_order/<order_id>', methods=['GET', 'POST'])
 def edit_order(order_id):
@@ -851,17 +907,27 @@ def get_messages():
         messages = ChatMessage.query.filter(
             ((ChatMessage.sender_email == user_email) | (ChatMessage.receiver_email == user_email))
         ).order_by(ChatMessage.timestamp).all()
-        message_list = [{
-            'id': msg.id,
-            'sender_email': msg.sender_email,
-            'receiver_email': msg.receiver_email,
-            'message': msg.message,
-            'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            'is_read': msg.is_read
-        } for msg in messages]
+        message_list = []
+        for msg in messages:
+            # Mark as read if receiver is fetching
+            if msg.receiver_email == user_email and not msg.is_read:
+                msg.is_read = True
+                db.session.commit()
+                # Notify sender that message is read
+                sender_room = msg.sender_email
+                socketio.emit('message_read', {'message_id': msg.id}, room=sender_room)
+            message_list.append({
+                'id': msg.id,
+                'sender_email': msg.sender_email,
+                'receiver_email': msg.receiver_email,
+                'message': msg.message,
+                'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                'is_read': msg.is_read
+            })
         return jsonify({'messages': message_list}), 200
     except Exception as e:
         print('Error fetching messages:', e)
+        db.session.rollback()
         return jsonify({'error': 'Database error'}), 500
 
 @socketio.on('send_message')
@@ -886,11 +952,42 @@ def handle_send_message(data):
             socketio.emit('receive_message', {
                 'sender_email': user_email,
                 'message': message,
-                'timestamp': new_message.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                'timestamp': new_message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                'message_id': new_message.id
             }, room=room)
         except Exception as e:
             print('Error in socket send message:', e)
             db.session.rollback()
+
+@socketio.on('typing_start')
+def handle_typing_start(data):
+    user_email = session.get('user')
+    if not user_email:
+        return
+    receiver_email = data.get('receiver_email')
+    if receiver_email:
+        # Determine the room to emit to
+        admin_email = next((u['email'] for u in users if u.get('role') == 'admin'), None)
+        if receiver_email == admin_email:
+            room = admin_email
+        else:
+            room = receiver_email
+        socketio.emit('user_typing', {'sender_email': user_email, 'typing': True}, room=room, skip_sid=request.sid)
+
+@socketio.on('typing_stop')
+def handle_typing_stop(data):
+    user_email = session.get('user')
+    if not user_email:
+        return
+    receiver_email = data.get('receiver_email')
+    if receiver_email:
+        # Determine the room to emit to
+        admin_email = next((u['email'] for u in users if u.get('role') == 'admin'), None)
+        if receiver_email == admin_email:
+            room = admin_email
+        else:
+            room = receiver_email
+        socketio.emit('user_typing', {'sender_email': user_email, 'typing': False}, room=room, skip_sid=request.sid)
 
 @app.route('/forgot_password', methods=['POST'])
 def forgot_password():
@@ -911,5 +1008,159 @@ def forgot_password():
     else:
         return jsonify({'message': 'Failed to send email. Please try again.'}), 500
 
+@app.route('/submit_review', methods=['POST'])
+def submit_review():
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    data = request.get_json()
+    order_id = data.get('order_id')
+    rating = data.get('rating')
+    comment = data.get('comment', '')
+
+    if not order_id or not rating:
+        return jsonify({'error': 'Order ID and rating are required'}), 400
+
+    if rating < 1 or rating > 5:
+        return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+
+    # Check if order exists and belongs to user
+    order = next((o for o in all_orders if o['order_id'] == order_id and o['user_email'] == user_email), None)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    # Check if order is delivered
+    if order['status'] != 'Delivered':
+        return jsonify({'error': 'Can only review delivered orders'}), 400
+
+    # Check if review already exists
+    existing_review = Review.query.filter_by(order_id=order_id, user_email=user_email).first()
+    if existing_review:
+        return jsonify({'error': 'Review already submitted for this order'}), 400
+
+    # Save review
+    try:
+        new_review = Review(order_id=order_id, user_email=user_email, rating=rating, comment=comment)
+        db.session.add(new_review)
+        db.session.commit()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print('Error saving review:', e)
+        db.session.rollback()
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/api/reviews')
+def api_reviews():
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        reviews_db = Review.query.all()
+        reviews = []
+        for r in reviews_db:
+            reviews.append({
+                'id': r.id,
+                'order_id': r.order_id,
+                'user_email': r.user_email,
+                'rating': r.rating,
+                'comment': r.comment,
+                'approved': r.approved,
+                'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        return jsonify({'reviews': reviews}), 200
+    except Exception as e:
+        print('Error fetching reviews:', e)
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/approve_review/<int:review_id>', methods=['POST'])
+def approve_review(review_id):
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        review = Review.query.get(review_id)
+        if not review:
+            return jsonify({'error': 'Review not found'}), 404
+        review.approved = True
+        db.session.commit()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print('Error approving review:', e)
+        db.session.rollback()
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/delete_review/<int:review_id>', methods=['POST'])
+def delete_review(review_id):
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        review = Review.query.get(review_id)
+        if not review:
+            return jsonify({'error': 'Review not found'}), 404
+        db.session.delete(review)
+        db.session.commit()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print('Error deleting review:', e)
+        db.session.rollback()
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/api/user_reviews')
+def api_user_reviews():
+    user_email = session.get('user')
+    if not user_email:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    try:
+        reviews_db = Review.query.filter_by(user_email=user_email).all()
+        reviews = []
+        for r in reviews_db:
+            reviews.append({
+                'id': r.id,
+                'order_id': r.order_id,
+                'user_email': r.user_email,
+                'rating': r.rating,
+                'comment': r.comment,
+                'approved': r.approved,
+                'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        return jsonify({'reviews': reviews}), 200
+    except Exception as e:
+        print('Error fetching user reviews:', e)
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/api/approved_reviews')
+def api_approved_reviews():
+    try:
+        reviews_db = Review.query.filter_by(approved=True).all()
+        reviews = []
+        for r in reviews_db:
+            reviews.append({
+                'id': r.id,
+                'order_id': r.order_id,
+                'user_email': r.user_email,
+                'rating': r.rating,
+                'comment': r.comment,
+                'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        return jsonify({'reviews': reviews}), 200
+    except Exception as e:
+        print('Error fetching approved reviews:', e)
+        return jsonify({'error': 'Database error'}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
+    socketio.run(app, debug=True, host='0.0.0.0', port=int(os.getenv("PORT", 5000)))

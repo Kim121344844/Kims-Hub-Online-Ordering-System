@@ -80,7 +80,15 @@
                   {% if order.status == 'Processing' %}
                   <button type="button" class="btn btn-success" onclick="approveOrder('{{ order.order_id }}')">Approve Order</button>
                   {% elif order.status == 'Paid' %}
-                  <span class="status-approved">Approved</span>
+                  <button type="button" class="btn btn-info" onclick="updateStatus('{{ order.order_id }}', 'Preparing')">Start Preparing</button>
+                  {% elif order.status == 'Preparing' %}
+                  <button type="button" class="btn btn-info" onclick="updateStatus('{{ order.order_id }}', 'Cooking')">Start Cooking</button>
+                  {% elif order.status == 'Cooking' %}
+                  <button type="button" class="btn btn-info" onclick="updateStatus('{{ order.order_id }}', 'On the way')">Out for Delivery</button>
+                  {% elif order.status == 'On the way' %}
+                  <button type="button" class="btn btn-info" onclick="updateStatus('{{ order.order_id }}', 'Delivered')">Mark Delivered</button>
+                  {% elif order.status == 'Delivered' %}
+                  <span class="status-delivered">Delivered</span>
                   {% elif order.status == 'Cancelled' %}
                   <span class="status-cancelled">Cancelled</span>
                   {% endif %}
@@ -148,6 +156,26 @@
         </table>
       </section>
 
+      <section class="manage-reviews" style="padding: 60px 40px;">
+        <h2>Manage Reviews</h2>
+        <table id="reviews-table" class="orders-table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>User Email</th>
+              <th>Rating</th>
+              <th>Comment</th>
+              <th>Status</th>
+              <th>Timestamp</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reviews-tbody">
+            <!-- Reviews will be populated by JavaScript -->
+          </tbody>
+        </table>
+      </section>
+
       <section class="chat-section" style="padding: 60px 40px;">
         <h2>Chat with Users</h2>
         <div id="notifications" class="notifications-container"></div>
@@ -192,6 +220,7 @@
     // Chat functionality
     document.addEventListener('DOMContentLoaded', function() {
       fetchOrders();
+      fetchReviews();
       setInterval(fetchOrders, 5000); // Update every 5 seconds
 
       // Input is always enabled; send will check for selected user
@@ -315,6 +344,25 @@
       const tbody = document.querySelector('#all-orders-table tbody');
       tbody.innerHTML = '';
       orders.forEach((order) => {
+        let actionButtons = `<a href="/edit_order/${order.order_id}" class="btn btn-primary">Edit</a>`;
+        if (order.status !== 'Cancelled') {
+          actionButtons += `<button type="button" class="btn btn-danger" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>`;
+        }
+        if (order.status === 'Processing') {
+          actionButtons += `<button type="button" class="btn btn-success" onclick="approveOrder('${order.order_id}')">Approve Order</button>`;
+        } else if (order.status === 'Paid') {
+          actionButtons += `<button type="button" class="btn btn-info" onclick="updateStatus('${order.order_id}', 'Preparing')">Start Preparing</button>`;
+        } else if (order.status === 'Preparing') {
+          actionButtons += `<button type="button" class="btn btn-info" onclick="updateStatus('${order.order_id}', 'Cooking')">Start Cooking</button>`;
+        } else if (order.status === 'Cooking') {
+          actionButtons += `<button type="button" class="btn btn-info" onclick="updateStatus('${order.order_id}', 'On the way')">Out for Delivery</button>`;
+        } else if (order.status === 'On the way') {
+          actionButtons += `<button type="button" class="btn btn-info" onclick="updateStatus('${order.order_id}', 'Delivered')">Mark Delivered</button>`;
+        } else if (order.status === 'Delivered') {
+          actionButtons += '<span class="status-delivered">Delivered</span>';
+        } else if (order.status === 'Cancelled') {
+          actionButtons += '<span class="status-cancelled">Cancelled</span>';
+        }
         const row = document.createElement('tr');
         row.innerHTML = `
           <td>${order.user_name}</td>
@@ -330,13 +378,7 @@
           <td>${order.status}</td>
           <td class="actions-cell">
             <div class="button-container">
-              <a href="/edit_order/${order.order_id}" class="btn btn-primary">Edit</a>
-              ${order.status !== 'Cancelled' ? `<form method="POST" action="/cancel_order/${order.order_id}" style="display:inline;" onsubmit="return cancelOrder(event, '${order.order_id}')">
-                <button type="submit" class="btn btn-danger">Cancel Order</button>
-              </form>` : ''}
-              ${order.status === 'Processing' ? `<form method="POST" action="/approve_order/${order.order_id}" style="display:inline;" onsubmit="return approveOrder(event, '${order.order_id}')">
-                <button type="submit" class="btn btn-success">Approve Order</button>
-              </form>` : order.status === 'Paid' ? '<span class="status-approved">Approved</span>' : '<span class="status-cancelled">Cancelled</span>'}
+              ${actionButtons}
             </div>
           </td>
         `;
@@ -425,10 +467,31 @@
     }
 
     // Function to cancel order
-    async function cancelOrder(event, orderId) {
-      event.preventDefault();
+    async function cancelOrder(orderId) {
+      if (confirm('Are you sure you want to cancel this order?')) {
+        try {
+          const response = await fetch(`/cancel_order/${orderId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          });
+          if (response.ok) {
+            fetchOrders(); // Refresh the orders
+          } else {
+            alert('Failed to cancel order');
+          }
+        } catch (error) {
+          console.error('Error cancelling order:', error);
+          alert('Error cancelling order');
+        }
+      }
+    }
+
+    // Function to update order status
+    async function updateStatus(orderId, status) {
       try {
-        const response = await fetch(`/cancel_order/${orderId}`, {
+        const response = await fetch(`/update_order_status/${orderId}/${status}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -437,13 +500,12 @@
         if (response.ok) {
           fetchOrders(); // Refresh the orders
         } else {
-          alert('Failed to cancel order');
+          alert('Failed to update order status');
         }
       } catch (error) {
-        console.error('Error cancelling order:', error);
-        alert('Error cancelling order');
+        console.error('Error updating order status:', error);
+        alert('Error updating order status');
       }
-      return false;
     }
 
     // Function to remove user
@@ -495,6 +557,94 @@
         e.stopPropagation(); // Prevent triggering the select user event
         notificationDiv.remove();
       });
+    }
+
+    // Function to fetch and update reviews
+    async function fetchReviews() {
+      try {
+        const response = await fetch('/api/reviews');
+        if (response.ok) {
+          const data = await response.json();
+          updateReviewsTable(data.reviews);
+        } else {
+          console.error('Failed to fetch reviews:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+      }
+    }
+
+    // Function to update the reviews table
+    function updateReviewsTable(reviews) {
+      const tbody = document.getElementById('reviews-tbody');
+      tbody.innerHTML = '';
+      reviews.forEach((review) => {
+        const status = review.approved ? 'Approved' : 'Pending';
+        const actions = review.approved
+          ? `<button type="button" class="btn btn-danger" onclick="deleteReview('${review.id}')">Delete</button>`
+          : `<button type="button" class="btn btn-success" onclick="approveReview('${review.id}')">Approve</button> <button type="button" class="btn btn-danger" onclick="deleteReview('${review.id}')">Delete</button>`;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${review.order_id}</td>
+          <td>${review.user_email}</td>
+          <td class="admin-rating">${Array.from({length: 5}, (_, i) => `<span class="star ${i < review.rating ? 'active' : ''}">★</span>`).join('')}</td>
+          <td>${review.comment}</td>
+          <td>${status}</td>
+          <td>${review.timestamp}</td>
+          <td class="actions-cell">
+            <div class="button-container">
+              ${actions}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Function to approve review
+    async function approveReview(reviewId) {
+      if (confirm('Are you sure you want to approve this review?')) {
+        try {
+          const response = await fetch(`/approve_review/${reviewId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          });
+          if (response.ok) {
+            fetchReviews(); // Refresh the reviews
+            alert('Review approved successfully');
+          } else {
+            alert('Failed to approve review');
+          }
+        } catch (error) {
+          console.error('Error approving review:', error);
+          alert('Error approving review');
+        }
+      }
+    }
+
+    // Function to delete review
+    async function deleteReview(reviewId) {
+      if (confirm('Are you sure you want to delete this review?')) {
+        try {
+          const response = await fetch(`/delete_review/${reviewId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          });
+          if (response.ok) {
+            fetchReviews(); // Refresh the reviews
+            alert('Review deleted successfully');
+          } else {
+            alert('Failed to delete review');
+          }
+        } catch (error) {
+          console.error('Error deleting review:', error);
+          alert('Error deleting review');
+        }
+      }
     }
 
   </script>

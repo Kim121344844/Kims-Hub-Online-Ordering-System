@@ -144,6 +144,14 @@
         </div>
       </section>
 
+      <!-- Order Tracking Section -->
+      <section class="order-tracking" style="padding: 60px 40px; background-color: #f9f9f9;">
+        <h2><i class="fas fa-truck"></i> Order Tracking</h2>
+        <div id="order-tracking-container" style="margin-top: 20px;">
+          <!-- Order tracking will be populated by JavaScript -->
+        </div>
+      </section>
+
       <!-- Notifications Section -->
       <section class="notifications" style="padding: 60px 40px; background-color: #f9f9f9;">
         <h2><i class="fas fa-bell"></i> Notifications</h2>
@@ -152,12 +160,21 @@
         </ul>
       </section>
 
+      <!-- My Reviews Section -->
+      <section class="my-reviews" style="padding: 60px 40px;">
+        <h2><i class="fas fa-star"></i> My Reviews</h2>
+        <div id="reviews-container">
+          <!-- Reviews will be populated by JavaScript -->
+        </div>
+      </section>
+
       <!-- Chat Section -->
       <section class="chat-section" style="padding: 60px 40px;">
         <h2><i class="fas fa-comments"></i> Chat with Admin</h2>
         <div class="chat-container">
           <div class="chat-window">
             <div id="chat-messages" class="messages"></div>
+            <div id="typing-indicator" style="display:none; padding: 10px; font-style: italic; color: #666;">Admin is typing...</div>
             <div class="message-input">
               <input type="text" id="message-input" placeholder="Type your message...">
               <button id="send-button">Send</button>
@@ -215,6 +232,29 @@
     </div>
   </div>
 
+  <!-- Reorder Modal -->
+  <div id="reorder-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" id="close-reorder-modal">&times;</span>
+      <h2>Reorder Order</h2>
+      <div id="reorder-details">
+        <!-- Order details will be populated here -->
+      </div>
+      <button id="confirm-reorder-btn" class="btn" style="padding: 12px 24px; font-size: 16px; border-radius: 8px; background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%); color: white; border: none; box-shadow: 0 4px 8px rgba(255, 107, 53, 0.3); transition: all 0.3s ease; cursor: pointer;">Confirm</button>
+    </div>
+  </div>
+
+  <!-- Order Tracking Modal -->
+  <div id="order-tracking-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" id="close-order-tracking-modal">&times;</span>
+      <h2>Order Tracking Details</h2>
+      <div id="order-tracking-details">
+        <!-- Order tracking details will be populated here -->
+      </div>
+    </div>
+  </div>
+
   <footer>
     <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
   </footer>
@@ -238,6 +278,7 @@
           const data = await response.json();
           updateNotifications(data.notifications);
           updateOrderHistory(data.order_history);
+          updateOrderTracking(data.order_history);
         } else {
           console.error('Failed to fetch user orders:', response.status);
         }
@@ -268,9 +309,33 @@
       });
     }
 
+    // Function to update order tracking
+    function updateOrderTracking(orderHistory) {
+      const container = document.getElementById('order-tracking-container');
+      container.innerHTML = '';
+      if (orderHistory.length === 0) {
+        container.innerHTML = '<p>No orders to track.</p>';
+        return;
+      }
+      orderHistory.forEach(order => {
+        const div = document.createElement('div');
+        div.className = 'order-track-item';
+        div.innerHTML = `
+          <div style="display: flex; gap: 15px; margin-bottom: 15px; justify-content: flex-start; align-items: center;">
+            <button class="btn track-btn" data-order-id="${order.order_id}" style="padding: 12px 24px; font-size: 14px; border-radius: 8px; background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%); color: white; border: none; box-shadow: 0 4px 8px rgba(255, 107, 53, 0.3); transition: all 0.3s ease; cursor: pointer;">Track Order</button>
+            <button class="btn reorder-btn" data-order-id="${order.order_id}" style="padding: 12px 24px; font-size: 14px; border-radius: 8px; background: linear-gradient(135deg, #FF6B35 0%, #FFA500 100%); color: white; border: none; box-shadow: 0 4px 8px rgba(255, 107, 53, 0.3); transition: all 0.3s ease; cursor: pointer;">Reorder</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+      // Update global orderHistory for reorder and tracking functionality
+      window.orderHistory = orderHistory;
+    }
+
     // Fetch user orders on page load
     document.addEventListener('DOMContentLoaded', function() {
       fetchUserOrders();
+      fetchUserReviews();
 
       // Edit Profile Modal
       const editBtn = document.getElementById('edit-profile-btn');
@@ -370,6 +435,80 @@
         });
       });
 
+      // Reorder and Track Order functionality
+      let currentOrder = null;
+      let orderHistory = [];
+      document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('reorder-btn')) {
+          const orderId = event.target.getAttribute('data-order-id');
+          const order = window.orderHistory.find(o => o.order_id == orderId);
+          if (order) {
+            const modal = document.getElementById('reorder-modal');
+            const details = document.getElementById('reorder-details');
+            details.innerHTML = `
+              <p><strong>Order ID:</strong> ${order.order_id}</p>
+              <p><strong>Date:</strong> ${order.date}</p>
+              <p><strong>Items:</strong> ${order.items.join(', ')}</p>
+              <p><strong>Status:</strong> ${order.status}</p>
+              <br><br>
+            `;
+            modal.style.display = 'block';
+            currentOrder = order;
+          }
+        } else if (event.target.classList.contains('track-btn')) {
+          const orderId = event.target.getAttribute('data-order-id');
+          const order = window.orderHistory.find(o => o.order_id == orderId);
+          if (order) {
+            const modal = document.getElementById('order-tracking-modal');
+            const details = document.getElementById('order-tracking-details');
+            details.innerHTML = `
+              <p><strong>Order ID:</strong> ${order.order_id}</p>
+              <p><strong>Status:</strong> ${order.status}</p>
+              <p><strong>Date:</strong> ${order.date}</p>
+              <p><strong>Items:</strong> ${order.items.join(', ')}</p>
+            `;
+            modal.style.display = 'block';
+          }
+        }
+      });
+
+      // Close reorder modal
+      const closeReorderBtn = document.getElementById('close-reorder-modal');
+      closeReorderBtn.addEventListener('click', () => {
+        document.getElementById('reorder-modal').style.display = 'none';
+      });
+
+      // Close order tracking modal
+      const closeOrderTrackingBtn = document.getElementById('close-order-tracking-modal');
+      closeOrderTrackingBtn.addEventListener('click', () => {
+        document.getElementById('order-tracking-modal').style.display = 'none';
+      });
+
+      // Confirm reorder
+      const confirmReorderBtn = document.getElementById('confirm-reorder-btn');
+      confirmReorderBtn.addEventListener('click', () => {
+        if (currentOrder) {
+          if (confirm('Are you sure you want to reorder this order? This will redirect you to the menu to add items to your cart.')) {
+            // Add items to cart and redirect to menu
+            window.location.href = '/menu';
+          }
+        } else {
+          alert('No order selected for reordering.');
+        }
+      });
+
+      // Close modals when clicking outside
+      window.addEventListener('click', (event) => {
+        const reorderModal = document.getElementById('reorder-modal');
+        const orderTrackingModal = document.getElementById('order-tracking-modal');
+        if (event.target === reorderModal) {
+          reorderModal.style.display = 'none';
+        }
+        if (event.target === orderTrackingModal) {
+          orderTrackingModal.style.display = 'none';
+        }
+      });
+
       // Chat functionality
       const messageInput = document.getElementById('message-input');
       const sendButton = document.getElementById('send-button');
@@ -391,6 +530,38 @@
       // Socket listener for new messages
       socket.on('receive_message', function(data) {
         displayMessage(data);
+      });
+
+      // Typing indicator listeners
+      socket.on('user_typing', function(data) {
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (data.typing) {
+          typingIndicator.style.display = 'block';
+        } else {
+          typingIndicator.style.display = 'none';
+        }
+      });
+
+      // Read receipts listener
+      socket.on('message_read', function(data) {
+        // Update read status for the message
+        const messages = document.querySelectorAll('.message.sent');
+        messages.forEach(msg => {
+          const readStatus = msg.querySelector('.read-status');
+          if (readStatus) {
+            readStatus.textContent = '✓✓';
+          }
+        });
+      });
+
+      // Typing logic
+      let typingTimeout;
+      messageInput.addEventListener('input', function() {
+        socket.emit('typing_start', { user_email: '{{ user_email }}' });
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          socket.emit('typing_stop', { user_email: '{{ user_email }}' });
+        }, 1000);
       });
 
       async function sendMessage() {
@@ -447,12 +618,131 @@
         messageDiv.classList.add('message');
         if (msg.sender_email === '{{ user_email }}') {
           messageDiv.classList.add('sent');
+          messageDiv.innerHTML = `<strong>You:</strong> ${msg.message} <small>${msg.timestamp}</small> <span class="read-status">${msg.is_read ? '✓✓' : '✓'}</span>`;
         } else {
           messageDiv.classList.add('received');
+          messageDiv.innerHTML = `<strong>${msg.sender_email}:</strong> ${msg.message} <small>${msg.timestamp}</small>`;
         }
-        messageDiv.innerHTML = `<strong>${msg.sender_email}:</strong> ${msg.message} <small>${msg.timestamp}</small>`;
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Function to fetch and display user reviews
+      async function fetchUserReviews() {
+        try {
+          const response = await fetch('/api/user_reviews');
+          if (response.ok) {
+            const data = await response.json();
+            updateReviews(data.reviews);
+          } else {
+            console.error('Failed to fetch user reviews:', response.status);
+          }
+        } catch (error) {
+          console.error('Error fetching user reviews:', error);
+        }
+      }
+
+      // Function to update reviews section
+      function updateReviews(reviews) {
+        const container = document.getElementById('reviews-container');
+        container.innerHTML = '';
+
+        // Get delivered orders that can be reviewed
+        const deliveredOrders = window.orderHistory.filter(order => order.status === 'Delivered');
+        const reviewedOrderIds = reviews.map(review => review.order_id);
+
+        // Show review forms for unreviewed delivered orders
+        const unreviewedOrders = deliveredOrders.filter(order => !reviewedOrderIds.includes(order.order_id));
+        unreviewedOrders.forEach(order => {
+          const formDiv = document.createElement('div');
+          formDiv.className = 'review-form';
+          formDiv.innerHTML = `
+            <h4>Review Order #${order.order_id}</h4>
+            <form class="submit-review-form" data-order-id="${order.order_id}">
+              <div class="form-group">
+                <label>Rating:</label>
+                <div class="rating-input">
+                  <input type="radio" id="star5-${order.order_id}" name="rating-${order.order_id}" value="5" title="5 Stars - Excellent">
+                  <label for="star5-${order.order_id}" class="star">★</label>
+                  <input type="radio" id="star4-${order.order_id}" name="rating-${order.order_id}" value="4" title="4 Stars - Very Good">
+                  <label for="star4-${order.order_id}" class="star">★</label>
+                  <input type="radio" id="star3-${order.order_id}" name="rating-${order.order_id}" value="3" title="3 Stars - Good">
+                  <label for="star3-${order.order_id}" class="star">★</label>
+                  <input type="radio" id="star2-${order.order_id}" name="rating-${order.order_id}" value="2" title="2 Stars - Fair">
+                  <label for="star2-${order.order_id}" class="star">★</label>
+                  <input type="radio" id="star1-${order.order_id}" name="rating-${order.order_id}" value="1" title="1 Star - Poor">
+                  <label for="star1-${order.order_id}" class="star">★</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="comment-${order.order_id}">Comment:</label>
+                <textarea id="comment-${order.order_id}" name="comment" rows="3" placeholder="Share your experience..."></textarea>
+              </div>
+              <button type="submit" class="btn">Submit Review</button>
+            </form>
+          `;
+          container.appendChild(formDiv);
+        });
+
+        // Show submitted reviews
+        if (reviews.length === 0 && unreviewedOrders.length === 0) {
+          container.innerHTML += '<p>You have not submitted any reviews yet.</p>';
+        } else {
+          reviews.forEach(review => {
+            const reviewDiv = document.createElement('div');
+            reviewDiv.className = 'review-item';
+            reviewDiv.innerHTML = `
+              <div class="review-header">
+                <h4>Order #${review.order_id}</h4>
+                <div class="rating">${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}</div>
+              </div>
+              <p class="review-comment">${review.comment}</p>
+              <small class="review-date">${review.timestamp}</small>
+              <span class="review-status ${review.approved ? 'approved' : 'pending'}">${review.approved ? 'Approved' : 'Pending Approval'}</span>
+            `;
+            container.appendChild(reviewDiv);
+          });
+        }
+
+        // Add event listeners for review forms
+        document.querySelectorAll('.submit-review-form').forEach(form => {
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const orderId = form.getAttribute('data-order-id');
+            const rating = form.querySelector(`input[name="rating-${orderId}"]:checked`)?.value;
+            const comment = form.querySelector(`#comment-${orderId}`).value.trim();
+
+            if (!rating) {
+              alert('Please select a rating.');
+              return;
+            }
+
+            try {
+              const response = await fetch('/submit_review', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  order_id: orderId,
+                  rating: parseInt(rating),
+                  comment: comment
+                })
+              });
+
+              if (response.ok) {
+                alert('Review submitted successfully!');
+                fetchUserReviews(); // Refresh reviews
+              } else {
+                const error = await response.json();
+                alert(error.error || 'Failed to submit review.');
+              }
+            } catch (error) {
+              console.error('Error submitting review:', error);
+              alert('An error occurred. Please try again.');
+            }
+          });
+        });
       }
     });
   </script>
