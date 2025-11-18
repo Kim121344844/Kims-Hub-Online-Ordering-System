@@ -445,8 +445,7 @@
     }
 
     // Function to approve order
-    async function approveOrder(event, orderId) {
-      event.preventDefault();
+    async function approveOrder(orderId) {
       try {
         const response = await fetch(`/approve_order/${orderId}`, {
           method: 'POST',
@@ -463,7 +462,6 @@
         console.error('Error approving order:', error);
         alert('Error approving order');
       }
-      return false;
     }
 
     // Function to cancel order
