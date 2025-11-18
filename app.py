@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from models import db, User, Order, OTP, ChatMessage, Review
 from config import Config
 from werkzeug.security import generate_password_hash
+from werkzeug.utils import secure_filename
 from flask_mail import Mail, Message
 from otp import generate_otp, send_otp_email, store_otp_in_db, send_password_reset_otp_email
 from sqlalchemy import text
@@ -36,7 +37,7 @@ def _load_users_from_db():
     with app.app_context():
         try:
             users_db = User.query.all()
-            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role} for u in users_db]
+            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role, 'profile_picture': u.profile_picture} for u in users_db]
             print(f'Loaded {len(users)} users from database')
         except Exception as e:
             print('Error loading users from database:', e)
@@ -52,6 +53,7 @@ app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = 'kimshubonlineorderingsystem@gmail.com'
 app.config['MAIL_PASSWORD'] = 'frav tlep eaes xyqs'
 app.config['MAIL_DEFAULT_SENDER'] = 'kimshubonlineorderingsystem@gmail.com'
+app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
 
 db.init_app(app)
 socketio = SocketIO(app)
@@ -66,6 +68,14 @@ with app.app_context():
         print('Altered reviews table to allow NULL order_id')
     except Exception as e:
         print('Alter table skipped or failed:', e)
+        db.session.rollback()
+    # Alter users table to add profile_picture column if not exists
+    try:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(200) NULL;"))
+        db.session.commit()
+        print('Altered users table to add profile_picture column')
+    except Exception as e:
+        print('Alter users table skipped or failed:', e)
         db.session.rollback()
     # Create default admin user if not exists
     admin_user = User.query.filter_by(role='admin').first()
@@ -249,7 +259,7 @@ def dashboard():
     # Find admin email for chat
     admin_email = next((u['email'] for u in users if u.get('role') == 'admin'), None)
 
-    return render_template('dashboard.html', user_name=user_name, user_email=user_email, favorites=favorites, cart=cart,
+    return render_template('dashboard.html', user=user, user_name=user_name, user_email=user_email, favorites=favorites, cart=cart,
                            cart_total=cart_total, total_orders=total_orders, total_spent=total_spent, favorite_category=favorite_category,
                            recent_orders=recent_orders, recommendations=recommendations, admin_email=admin_email)
 
@@ -815,9 +825,8 @@ def edit_profile():
     if not user_email:
         return jsonify({'message': 'Not logged in'}), 401
 
-    data = request.get_json()
-    new_name = data.get('name')
-    new_email = data.get('email')
+    new_name = request.form.get('name')
+    new_email = request.form.get('email')
 
     if not new_name or not new_email:
         return jsonify({'message': 'Name and email are required'}), 400
@@ -825,14 +834,25 @@ def edit_profile():
     existing_user = User.query.filter_by(email=new_email).first()
     if existing_user and existing_user.email != user_email:
         return jsonify({'message': 'Email already in use'}), 400
-    
+
     user = User.query.filter_by(email=user_email).first()
     if user:
         user.name = new_name
         user.email = new_email
+
+        # Handle profile picture upload
+        if 'profile_picture' in request.files:
+            file = request.files['profile_picture']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                unique_filename = f"{uuid.uuid4()}_{filename}"
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                file.save(file_path)
+                user.profile_picture = unique_filename
+
         db.session.commit()
-        session['user'] = new_email 
-        _load_users_from_db() 
+        session['user'] = new_email
+        _load_users_from_db()
         return jsonify({'message': 'Profile updated successfully'}), 200
     else:
         return jsonify({'message': 'User not found'}), 404

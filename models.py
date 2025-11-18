@@ -9,6 +9,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(20), default='user')
+    profile_picture = db.Column(db.String(200), nullable=True)  # Path to profile picture
 
     def __repr__(self):
         return f'<User {self.email}>'
