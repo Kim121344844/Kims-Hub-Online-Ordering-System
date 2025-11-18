@@ -16,61 +16,12 @@
     </div>
   </section>
 
-  <section class="customer-reviews" style="padding: 60px 40px; background-color: #f9f9f9;">
-    <h2>Customer Reviews</h2>
-    <div id="reviews-container" class="reviews-container">
-      <!-- Reviews will be populated by JavaScript -->
-    </div>
-  </section>
+
 
   <footer>
     <p>© 2025 Online Food Ordering System. | John 3:16 Unconditional Love.</p>
   </footer>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
-  <script>
-    // Function to fetch and display approved reviews
-    async function fetchApprovedReviews() {
-      try {
-        const response = await fetch('/api/approved_reviews');
-        if (response.ok) {
-          const data = await response.json();
-          displayReviews(data.reviews);
-        } else {
-          console.error('Failed to fetch approved reviews:', response.status);
-        }
-      } catch (error) {
-        console.error('Error fetching approved reviews:', error);
-      }
-    }
-
-    // Function to display reviews
-    function displayReviews(reviews) {
-      const container = document.getElementById('reviews-container');
-      container.innerHTML = '';
-      if (reviews.length === 0) {
-        container.innerHTML = '<p>No reviews available yet.</p>';
-        return;
-      }
-      reviews.forEach((review) => {
-        const reviewDiv = document.createElement('div');
-        reviewDiv.className = 'review-card';
-        reviewDiv.innerHTML = `
-          <div class="review-rating">
-            ${Array.from({length: 5}, (_, i) => `<span class="star ${i < review.rating ? 'active' : ''}">★</span>`).join('')}
-          </div>
-          <p class="review-comment">"${review.comment}"</p>
-          <p class="review-user">- ${review.user_email}</p>
-          <p class="review-timestamp">${review.timestamp}</p>
-        `;
-        container.appendChild(reviewDiv);
-      });
-    }
-
-    // Load reviews on page load
-    document.addEventListener('DOMContentLoaded', function() {
-      fetchApprovedReviews();
-    });
-  </script>
 </body>
 </html>

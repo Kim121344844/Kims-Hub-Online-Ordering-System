@@ -253,9 +253,30 @@ function submitRating() {
     return;
   }
 
-  // For now, just show an alert. In a real app, you'd send this to the server.
-  alert(`Thank you for your ${rating.value}-star rating!${comment ? '\nComment: ' + comment : ''}`);
-  closeRatingModal();
+  // Send rating to server
+  fetch('/submit_review', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      rating: parseInt(rating.value),
+      comment: comment
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('Thank you for your rating! It will be reviewed by our admin.');
+      closeRatingModal();
+    } else {
+      alert('Error submitting rating: ' + data.error);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred while submitting your rating.');
+  });
 }
 
 

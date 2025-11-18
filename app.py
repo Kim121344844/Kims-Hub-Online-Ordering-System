@@ -11,6 +11,7 @@ from config import Config
 from werkzeug.security import generate_password_hash
 from flask_mail import Mail, Message
 from otp import generate_otp, send_otp_email, store_otp_in_db, send_password_reset_otp_email
+from sqlalchemy import text
 
 load_dotenv()
 otp_storage = {}
@@ -58,6 +59,14 @@ mail = Mail(app)
 
 with app.app_context():
     db.create_all()
+    # Alter reviews table to allow NULL order_id if not already
+    try:
+        db.session.execute(text("ALTER TABLE reviews MODIFY order_id VARCHAR(50) NULL;"))
+        db.session.commit()
+        print('Altered reviews table to allow NULL order_id')
+    except Exception as e:
+        print('Alter table skipped or failed:', e)
+        db.session.rollback()
     # Create default admin user if not exists
     admin_user = User.query.filter_by(role='admin').first()
     if not admin_user:
@@ -963,24 +972,29 @@ def submit_review():
     rating = data.get('rating')
     comment = data.get('comment', '').strip()
 
-    if not order_id or not rating:
-        return jsonify({'error': 'Order ID and rating are required'}), 400
+    if not rating:
+        return jsonify({'error': 'Rating is required'}), 400
 
     if rating < 1 or rating > 5:
         return jsonify({'error': 'Rating must be between 1 and 5'}), 400
 
-    # Check if order exists and belongs to user and is delivered
-    order = next((o for o in all_orders if o['order_id'] == order_id and o['user_email'] == user_email), None)
-    if not order:
-        return jsonify({'error': 'Order not found'}), 404
+    # If order_id is provided, validate it (for order-specific reviews)
+    if order_id:
+        # Check if order exists and belongs to user and is delivered
+        order = next((o for o in all_orders if o['order_id'] == order_id and o['user_email'] == user_email), None)
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
 
-    if order['status'] != 'Delivered':
-        return jsonify({'error': 'Only delivered orders can be reviewed'}), 400
+        if order['status'] != 'Delivered':
+            return jsonify({'error': 'Only delivered orders can be reviewed'}), 400
 
-    # Check if review already exists for this order
-    existing_review = Review.query.filter_by(order_id=order_id, user_email=user_email).first()
-    if existing_review:
-        return jsonify({'error': 'Review already submitted for this order'}), 400
+        # Check if review already exists for this order
+        existing_review = Review.query.filter_by(order_id=order_id, user_email=user_email).first()
+        if existing_review:
+            return jsonify({'error': 'Review already submitted for this order'}), 400
+    else:
+        # General review, no order_id
+        pass
 
     # Save review
     try:

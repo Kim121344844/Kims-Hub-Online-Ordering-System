@@ -59,7 +59,7 @@ class ChatMessage(db.Model):
 class Review(db.Model):
     __tablename__ = 'reviews'
     id = db.Column(db.Integer, primary_key=True)
-    order_id = db.Column(db.String(50), nullable=False)
+    order_id = db.Column(db.String(50), nullable=True)
     user_email = db.Column(db.String(120), nullable=False)
     rating = db.Column(db.Integer, nullable=False)  # 1-5 stars
     comment = db.Column(db.Text)
@@ -67,4 +67,4 @@ class Review(db.Model):
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     def __repr__(self):
-        return f'<Review {self.order_id} by {self.user_email}: {self.rating} stars>'
+        return f'<Review {self.order_id or "General"} by {self.user_email}: {self.rating} stars>'
