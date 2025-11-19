@@ -21,7 +21,7 @@ def send_otp_email(email, name, otp):
         print("Error sending login OTP:", e)
         # For development/testing, print OTP to console if email fails
         print(f"DEV MODE: Login OTP for {email}: {otp}")
-        return True  # Return True to allow login flow to continue
+        return False  # Return False to indicate failure
 
 def store_otp_in_db(email, otp):
     """Store OTP in database."""
@@ -59,11 +59,13 @@ def send_password_reset_otp_email(email, name, otp):
         msg = Message('Password Reset OTP', recipients=[email])
         msg.body = f"Hi {name},\n\nYour password reset OTP code is: {otp}\nThis code expires in 5 minutes.\n\nIf you did not request this, please ignore this email."
         mail.send(msg)
-        print(f"Password reset OTP for {email}: {otp}")
+        print(f"Password reset OTP sent to {email}: {otp}")
         return True
     except Exception as e:
         print("Error sending password reset OTP:", e)
-        return False
+        # For development/testing, print OTP to console if email fails
+        print(f"DEV MODE: Password reset OTP for {email}: {otp}")
+        return True  # Return True to allow reset flow to continue
 
 def verify_password_reset_otp(email, otp_input):
     """Verify password reset OTP from database."""

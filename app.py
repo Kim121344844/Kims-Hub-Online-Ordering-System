@@ -50,9 +50,9 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'kimshubonlineorderingsystem@gmail.com'
-app.config['MAIL_PASSWORD'] = 'frav tlep eaes xyqs'
-app.config['MAIL_DEFAULT_SENDER'] = 'kimshubonlineorderingsystem@gmail.com'
+app.config['MAIL_USERNAME'] = 'kimshubonlineorderingsystem123@gmail.com'
+app.config['MAIL_PASSWORD'] = 'nhus rhmx nvbd slru'
+app.config['MAIL_DEFAULT_SENDER'] = 'kimshubonlineorderingsystem123@gmail.com'
 app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
 
 db.init_app(app)
@@ -174,6 +174,8 @@ def verify_login_otp(email):
             return jsonify({'success': False, 'message': message})
 
     return render_template('verify_login_otp.html', email=email)
+
+
 
 
 
@@ -588,10 +590,13 @@ def admin_dashboard():
 def api_orders():
     user_email = session.get('user')
     if not user_email:
+        app.logger.warning(f"Unauthorized access attempt to /api/orders from {request.remote_addr}: No user session - Status: 401")
         return {'error': 'Not logged in'}, 401
     user = next((u for u in users if u['email'] == user_email), None)
     if not user or user.get('role') != 'admin':
+        app.logger.warning(f"Unauthorized access attempt to /api/orders from {request.remote_addr}: User {user_email} (role: {user.get('role') if user else 'None'}) - Status: 403")
         return {'error': 'Unauthorized'}, 403
+    app.logger.info(f"Admin access to /api/orders from {request.remote_addr}: User {user_email} - Status: 200")
     total_revenue = sum(order['total'] for order in all_orders)
     return {'orders': all_orders, 'users': users, 'total_users': len(users), 'total_orders': len(all_orders), 'total_revenue': total_revenue}
 
