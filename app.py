@@ -19,7 +19,7 @@ otp_storage = {}
 users = []
 all_orders = []
 
-# Menu items with fixed prices
+# MENU ITEMS AND PRICES
 MENU_ITEMS = {
     'Burger': 800,
     'Pizza': 1200,
@@ -37,7 +37,7 @@ def _load_users_from_db():
     with app.app_context():
         try:
             users_db = User.query.all()
-            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role, 'profile_picture': u.profile_picture} for u in users_db]
+            users = [{'name': u.name, 'email': u.email, 'password': u.password, 'role': u.role, 'profile_picture': u.profile_picture, 'active': u.active} for u in users_db]
             print(f'Loaded {len(users)} users from database')
         except Exception as e:
             print('Error loading users from database:', e)
@@ -61,7 +61,6 @@ mail = Mail(app)
 
 with app.app_context():
     db.create_all()
-    # Alter reviews table to allow NULL order_id if not already
     try:
         db.session.execute(text("ALTER TABLE reviews MODIFY order_id VARCHAR(50) NULL;"))
         db.session.commit()
@@ -69,7 +68,6 @@ with app.app_context():
     except Exception as e:
         print('Alter table skipped or failed:', e)
         db.session.rollback()
-    # Alter users table to add profile_picture column if not exists
     try:
         db.session.execute(text("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(200) NULL;"))
         db.session.commit()
@@ -77,7 +75,13 @@ with app.app_context():
     except Exception as e:
         print('Alter users table skipped or failed:', e)
         db.session.rollback()
-    # Create default admin user if not exists
+    try:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN active BOOLEAN DEFAULT TRUE;"))
+        db.session.commit()
+        print('Altered users table to add active column')
+    except Exception as e:
+        print('Alter users table for active skipped or failed:', e)
+        db.session.rollback()
     admin_user = User.query.filter_by(role='admin').first()
     if not admin_user:
         hashed_password = generate_password_hash('admin123', method='pbkdf2:sha256:600000', salt_length=8)
@@ -85,11 +89,10 @@ with app.app_context():
         db.session.add(admin_user)
         db.session.commit()
         print('Default admin user created: admin@kimshub.com / admin123')
-    _load_users_from_db()  # Always load users from database on app start
+    _load_users_from_db()
     print('Database tables created or verified.')
 
-# Payment API functions
-
+# PAYMENT API
 def initiate_gcash_payment(amount, order_id, description):
     gcash_app_id = os.getenv('GCASH_APP_ID')
     gcash_app_secret = os.getenv('GCASH_APP_SECRET')
@@ -128,7 +131,11 @@ def login():
         user = next((u for u in users if u['email'] == email), None)
         if not user:
             return render_template('login.html', error='Email not registered.', email=email)
-        
+
+        # Check if user is active
+        if not user.get('active', True):
+            return render_template('login.html', error='Account is deactivated. Please contact admin.', email=email)
+
         from werkzeug.security import check_password_hash
         if not check_password_hash(user['password'], password):
             return render_template('login.html', error='Password is incorrect.', email=email)
@@ -886,6 +893,32 @@ def remove_user(email):
             return {'error': 'User not found'}, 404
     except Exception as e:
         print('Error removing user from database:', e)
+        db.session.rollback()
+        return {'error': 'Database error'}, 500
+
+@app.route('/toggle_user_active/<email>', methods=['POST'])
+def toggle_user_active(email):
+    user_email = session.get('user')
+    if not user_email:
+        return {'error': 'Not logged in'}, 401
+    user = next((u for u in users if u['email'] == user_email), None)
+    if not user or user.get('role') != 'admin':
+        return {'error': 'Unauthorized'}, 403
+    # Prevent admin from deactivating themselves
+    if email == user_email:
+        return {'error': 'Cannot deactivate yourself'}, 400
+    # Find and toggle user active status
+    try:
+        user_to_toggle = User.query.filter_by(email=email).first()
+        if user_to_toggle:
+            user_to_toggle.active = not user_to_toggle.active
+            db.session.commit()
+            _load_users_from_db()  # Refresh the global users list
+            return {'success': True, 'active': user_to_toggle.active}
+        else:
+            return {'error': 'User not found'}, 404
+    except Exception as e:
+        print('Error toggling user active status:', e)
         db.session.rollback()
         return {'error': 'Database error'}, 500
 

@@ -110,6 +110,7 @@
               <th>Email</th>
               <th>Phone</th>
               <th>Role</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -120,8 +121,14 @@
               <td>{{ user.email }}</td>
               <td>{{ user.phone }}</td>
               <td>{{ user.role }}</td>
+              <td>{{ 'Active' if user.active else 'Inactive' }}</td>
               <td class="actions-cell">
                 <div class="button-container">
+                  {% if user.active %}
+                  <button type="button" class="btn btn-warning" onclick="toggleUserActive('{{ user.email }}')">Deactivate</button>
+                  {% else %}
+                  <button type="button" class="btn btn-success" onclick="toggleUserActive('{{ user.email }}')">Activate</button>
+                  {% endif %}
                   <button type="button" class="btn btn-danger" onclick="removeUser('{{ user.email }}')">Remove User</button>
                 </div>
               </td>
@@ -384,17 +391,23 @@
     function updateUsersTable(users) {
       const tbody = document.querySelector('#all-users-table tbody');
       tbody.innerHTML = '';
-      const currentUserEmail = '{{ user_email }}'; 
+      const currentUserEmail = '{{ user_email }}';
       users.forEach((user) => {
         if (user.role !== 'admin') {
+          const status = user.active ? 'Active' : 'Inactive';
+          const toggleButton = user.active
+            ? `<button type="button" class="btn btn-warning" onclick="toggleUserActive('${user.email}')">Deactivate</button>`
+            : `<button type="button" class="btn btn-success" onclick="toggleUserActive('${user.email}')">Activate</button>`;
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${user.name}</td>
             <td>${user.email}</td>
             <td>${user.phone}</td>
             <td>${user.role}</td>
+            <td>${status}</td>
             <td class="actions-cell">
               <div class="button-container">
+                ${toggleButton}
                 <button type="button" class="btn btn-danger" onclick="removeUser('${user.email}')">Remove User</button>
               </div>
             </td>
@@ -513,6 +526,28 @@
         } catch (error) {
           console.error('Error removing user:', error);
           alert('Error removing user');
+        }
+      }
+    }
+
+    async function toggleUserActive(email) {
+      if (confirm('Are you sure you want to toggle the active status of this user?')) {
+        try {
+          const response = await fetch(`/toggle_user_active/${email}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          });
+          if (response.ok) {
+            fetchOrders(); // Refresh the table
+            alert('User status toggled successfully');
+          } else {
+            alert('Failed to toggle user status');
+          }
+        } catch (error) {
+          console.error('Error toggling user status:', error);
+          alert('Error toggling user status');
         }
       }
     }

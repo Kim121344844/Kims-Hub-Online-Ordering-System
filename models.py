@@ -10,6 +10,7 @@ class User(db.Model):
     password = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(20), default='user')
     profile_picture = db.Column(db.String(200), nullable=True)  # Path to profile picture
+    active = db.Column(db.Boolean, default=True)  # Active status for user account
 
     def __repr__(self):
         return f'<User {self.email}>'
