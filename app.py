@@ -709,6 +709,36 @@ def approve_order(order_id):
         return {'success': True}
     return {'error': 'Invalid order ID or status'}, 400
 
+from flask_mail import Message
+
+def send_order_status_email(order, status):
+    from app import mail
+    email = order.get('user_email')
+    name = order.get('user_name')
+    subject = ""
+    body = ""
+    if status == "Cooking":
+        subject = "Your order is cooking"
+        body = f"Hi {name},\n\nYour order {order.get('order_id')} is now being cooked.\nThank you for choosing us!"
+    elif status == "On the way":
+        subject = "Your order is on the way"
+        body = f"Hi {name},\n\nGood news! Your order {order.get('order_id')} is on the way.\nGet ready to enjoy your meal!"
+    elif status == "Delivered":
+        subject = "Your order has been delivered"
+        body = f"Hi {name},\n\nYour order {order.get('order_id')} has been delivered.\nWe hope you enjoy your food!\nThank you for ordering with us."
+    else:
+        # For other statuses, a generic message or no email
+        subject = f"Order {status} update"
+        body = f"Hi {name},\n\nYour order {order.get('order_id')} status has been updated to {status}."
+
+    try:
+        msg = Message(subject, recipients=[email])
+        msg.body = body
+        mail.send(msg)
+        print(f"Order status email sent to {email}: {subject}")
+    except Exception as e:
+        print(f"Error sending order status email to {email}: {e}")
+
 @app.route('/update_order_status/<order_id>/<status>', methods=['POST'])
 def update_order_status(order_id, status):
     user_email = session.get('user')
@@ -741,6 +771,8 @@ def update_order_status(order_id, status):
         if order_db:
             order_db.status = status
             db.session.commit()
+            # Send email notification after successful DB update
+            send_order_status_email(order, status)
     except Exception as e:
         print('Error updating order status in database:', e)
         db.session.rollback()
