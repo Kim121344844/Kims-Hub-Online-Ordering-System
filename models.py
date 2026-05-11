@@ -9,8 +9,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(20), default='user')
-    profile_picture = db.Column(db.String(200), nullable=True)  # Path to profile picture
-    active = db.Column(db.Boolean, default=True)  # Active status for user account
+    profile_picture = db.Column(db.String(200), nullable=True) 
+    active = db.Column(db.Boolean, default=True) 
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -63,7 +63,7 @@ class Review(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.String(50), nullable=True)
     user_email = db.Column(db.String(120), nullable=False)
-    rating = db.Column(db.Integer, nullable=False)  # 1-5 stars
+    rating = db.Column(db.Integer, nullable=False) 
     comment = db.Column(db.Text)
     approved = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
